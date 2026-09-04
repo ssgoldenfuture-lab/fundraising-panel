@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% set active = "ads" %}
+{% block title %}Analisis Web — Fundraising GFI{% endblock %}
+{% block content %}
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>Analisis Web</h1>
+    <p>Traffic tracker + transaksi online berdonasi.goldenfutureindonesia.org</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span style="font-size:12px;color:var(--ink-soft);">Periode:</span>
+    <a href="/ads?days=7"  class="btn {{ 'btn-primary' if days==7  }}">7 hari</a>
+    <a href="/ads?days=30" class="btn {{ 'btn-primary' if days==30 }}">30 hari</a>
+    <a href="/ads?days=90" class="btn {{ 'btn-primary' if days==90 }}">90 hari</a>
+  </div>
+</div>
+
+{# ══ TRANSAKSI ONLINE (MySQL berdonasi) ═══════════════════════════════════════ #}
+{% if txn_ok and txn_kpi %}
+<div style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;">
+  💳 Transaksi Online — {{ days }} hari terakhir
+</div>
+
+{# KPI bar #}
+<div class="grid-kpi" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px;">
+  <div class="card">
+    <div class="kpi-label">Total Masuk</div>
+    <div class="kpi-value">{{ txn_kpi.total }}</div>
+    <div class="kpi-sub">semua status</div>
+  </div>
+  <div class="card" style="border-top:3px solid #2F6B4F;">
+    <div class="kpi-label">Sudah Bayar</div>
+    <div class="kpi-value" style="color:#2F6B4F;">{{ txn_kpi.paid }}</div>
+    <div class="kpi-sub">{{ txn_kpi.revenue | int | format_num | replace(',','.') }} Rp</div>
+  </div>
+  <div class="card" style="border-top:3px solid #E8763A;">
+    <div class="kpi-label">Revenue</div>
+    <div class="kpi-value" style="font-size:16px;">{{ txn_kpi.revenue | int | rp }}</div>
+    <div class="kpi-sub">dari yang sudah bayar</div>
+  </div>
+  <div class="card" style="border-top:3px solid #F59E0B;">
+    <div class="kpi-label">Menunggu</div>
+    <div class="kpi-value" style="color:#92400E;">{{ txn_kpi.pending }}</div>
+    <div class="kpi-sub">belum konfirmasi</div>
+  </div>
+  <div class="card" style="border-top:3px solid #4A90A4;">
+    <div class="kpi-label">Konversi</div>
+    <div class="kpi-value" style="color:#4A90A4;">{{ txn_kpi.conv_rate }}%</div>
+    <div class="kpi-sub">paid / total</div>
+  </div>
+</div>
+
+{# Tren + Campaign #}
+<div class="row2" style="margin-bottom:12px;">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+      <h3 style="margin:0;">Tren Transaksi Harian</h3>
+      <span style="font-size:11px;color:var(--ink-soft);">{{ txn_tren|length }} hari</span>
+    </div>
+    <div style="position:relative;height:200px;width:100%;">
+      <canvas id="txnTrendChart"></canvas>
+    </div>
+    {% if not txn_tren %}
+    <p style="text-align:center;color:var(--ink-soft);font-size:12px;padding:60px 0;">Belum ada data</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3>Top Campaign</h3>
+    <table>
+      <thead><tr><th>Campaign</th><th class="num">Txn</th><th class="num">Revenue</th></tr></thead>
+      <tbody>
+      {% for c in txn_camps %}
+      <tr>
+        <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+            title="{{ c.campaign }}">{{ c.campaign }}</td>
+        <td class="num">{{ c.paid }}/{{ c.total }}</td>
+        <td class="num" style="font-size:11px;">{{ c.revenue | int | rp }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" style="color:var(--ink-soft);font-size:12px;">Belum ada data</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Rasio konversi + transaksi terbaru #}
+<div class="row2" style="margin-bottom:16px;">
+  <div class="card">
+    <h3>Rasio Konversi Harian</h3>
+    <table>
+      <thead><tr><th>Tanggal</th><th class="num">Total</th><th class="num">Bayar</th><th class="num">Rate</th></tr></thead>
+      <tbody>
+      {% for r in txn_conv %}
+      <tr>
+        <td style="font-size:12px;">{{ r.tgl }}</td>
+        <td class="num">{{ r.total }}</td>
+        <td class="num" style="color:#2F6B4F;">{{ r.paid }}</td>
+        <td class="num">
+          <span style="background:{% if r.rate >= 70 %}#DCFCE7;color:#166534{% elif r.rate >= 40 %}#FEF3C7;color:#92400E{% else %}#FEE2E2;color:#991B1B{% endif %};
+                        padding:2px 6px;border-radius:10px;font-size:11px;">{{ r.rate | int }}%</span>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" style="color:var(--ink-soft);font-size:12px;">Belum ada data</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Transaksi Terbaru</h3>
+    <table>
+      <thead><tr><th>Donor</th><th>Campaign</th><th class="num">Nominal</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for t in txn_list %}
+      <tr>
+        <td style="font-size:11px;font-weight:500;">{{ t.donor_name[:20] }}</td>
+        <td style="font-size:11px;color:var(--ink-soft);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.campaign }}</td>
+        <td class="num" style="font-size:11px;">{{ t.amount | int | rp }}</td>
+        <td>
+          {% if t.status == 'paid' %}
+            <span style="background:#DCFCE7;color:#166534;padding:2px 7px;border-radius:10px;font-size:10px;">✓ Bayar</span>
+          {% elif t.status == 'initiated' %}
+            <span style="background:#FEF3C7;color:#92400E;padding:2px 7px;border-radius:10px;font-size:10px;">⏳ Tunggu</span>
+          {% else %}
+            <span style="background:#F3F4F6;color:#6B7280;padding:2px 7px;border-radius:10px;font-size:10px;">{{ t.status }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif not txn_ok %}
+<div class="card" style="background:#FFF7F0;border:1px solid #FED7AA;padding:12px 16px;margin-bottom:16px;">
+  <p style="font-size:12px;color:#9A3412;">⚠️ Koneksi ke database transaksi online tidak tersedia</p>
+</div>
+{% endif %}
+
+{# ══ WEB TRACKER ANALYTICS ════════════════════════════════════════════════════ #}
+<div style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;">
+  🌐 Traffic Website
+  {% if kpi.sessions == 0 %}
+  <span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:2px 8px;border-radius:20px;margin-left:8px;font-weight:600;">Tracker belum dipasang</span>
+  {% endif %}
+</div>
+
+{% if kpi.sessions == 0 %}
+<div class="card" style="background:var(--bg);border:1px dashed var(--line);">
+  <div style="display:flex;align-items:flex-start;gap:16px;">
+    <span style="font-size:32px;">📡</span>
+    <div style="flex:1;">
+      <p style="font-size:13px;font-weight:600;margin-bottom:6px;">Pasang tracker untuk lihat data web traffic real-time</p>
+      <p style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">
+        Tambahkan di <code>resources/views/partials/header.blade.php</code> dalam <code>&lt;head&gt;</code>:
+      </p>
+      <div style="background:#111;color:#e8e8e8;padding:10px 14px;border-radius:8px;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <code>&lt;script src="https://fundraising.goldenfutureindonesia.org/static/tracker.js" defer&gt;&lt;/script&gt;</code>
+        <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent).then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='Copy',2000)})"
+                style="background:#2F6B4F;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:11px;white-space:nowrap;">Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="grid-kpi" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px;">
+  <div class="card"><div class="kpi-label">Page Views</div><div class="kpi-value">{{ kpi.pageviews | format_num }}</div><div class="kpi-sub">{{ days }} hari</div></div>
+  <div class="card"><div class="kpi-label">Sesi</div><div class="kpi-value">{{ kpi.sessions | format_num }}</div><div class="kpi-sub">unique sessions</div></div>
+  <div class="card"><div class="kpi-label">Visitor</div><div class="kpi-value">{{ kpi.visitors | format_num }}</div><div class="kpi-sub">by IP hash</div></div>
+  <div class="card"><div class="kpi-label">Hari Ini PV</div><div class="kpi-value">{{ kpi.today_pv }}</div><div class="kpi-sub">page views</div></div>
+  <div class="card"><div class="kpi-label">Sesi Hari Ini</div><div class="kpi-value">{{ kpi.today_sessions }}</div><div class="kpi-sub">unique sessions</div></div>
+</div>
+<div class="row2">
+  <div class="card">
+    <h3>Sumber Traffic</h3>
+    <div id="sourceBars">{% if not sources %}<p style="color:var(--ink-soft);font-size:12px;text-align:center;padding:32px 0;">Belum ada data</p>{% endif %}</div>
+  </div>
+  <div class="card">
+    <h3>Halaman Terpopuler</h3>
+    <table>
+      <thead><tr><th>Path</th><th class="num">PV</th><th class="num">Sesi</th></tr></thead>
+      <tbody>
+      {% for p in pages %}
+      <tr>
+        <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          <a href="https://berdonasi.goldenfutureindonesia.org{{ p.path }}" target="_blank" style="color:var(--accent);text-decoration:none;">{{ p.path }}</a>
+        </td>
+        <td class="num">{{ p.pageviews }}</td>
+        <td class="num">{{ p.sessions }}</td>
+      </tr>
+      {% else %}<tr><td colspan="3" style="color:var(--ink-soft);font-size:12px;">Belum ada data</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% if camps %}
+<div class="card" style="margin-top:8px;">
+  <h3>UTM Campaign</h3>
+  <table>
+    <thead><tr><th>Campaign</th><th>Source</th><th>Medium</th><th class="num">Sesi</th><th class="num">PV</th></tr></thead>
+    <tbody>
+    {% for c in camps %}<tr>
+      <td style="font-size:12px;font-weight:500;">{{ c.utm_campaign }}</td>
+      <td style="font-size:12px;color:var(--ink-soft);">{{ c.utm_source or '—' }}</td>
+      <td style="font-size:12px;color:var(--ink-soft);">{{ c.utm_medium or '—' }}</td>
+      <td class="num">{{ c.sessions }}</td>
+      <td class="num">{{ c.pageviews }}</td>
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if txn_ok and txn_tren %}
+// ── Tren transaksi harian ─────────────────────────────────────────────────────
+(function(){
+  const data = {{ txn_tren | tojson }};
+  if(!data.length) return;
+  const labels  = data.map(r => r.label.slice(5));
+  const totals  = data.map(r => r.total  || 0);
+  const paids   = data.map(r => r.paid   || 0);
+  new Chart(document.getElementById('txnTrendChart'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label:'Total Masuk', data:totals, backgroundColor:'#CBD5E1', borderRadius:3 },
+      { label:'Sudah Bayar', data:paids,  backgroundColor:'#2F6B4F', borderRadius:3 },
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: { legend:{ display:true, position:'top', labels:{font:{size:11},boxWidth:12} } },
+      scales: {
+        y: { beginAtZero:true, stacked:false, grid:{color:'#E3E1D8'}, ticks:{font:{size:10}} },
+        x: { grid:{display:false}, ticks:{font:{size:10}} }
+      }
+    }
+  });
+})();
+{% endif %}
+
+{% if kpi.sessions > 0 %}
+// ── Source bars ───────────────────────────────────────────────────────────────
+(function(){
+  const data = {{ sources | tojson }};
+  if(!data.length) return;
+  const max = data[0].sessions || 1;
+  const colors = { direct:'#6B7280',google:'#4285F4',facebook:'#1877F2',
+    instagram:'#E1306C',tiktok:'#010101',whatsapp:'#25D366',referral:'#8B5CF6' };
+  document.getElementById('sourceBars').innerHTML = data.map(s => {
+    const c = colors[s.source] || '#9CA3AF';
+    return `<div class="bar-item">
+      <span class="bar-name"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:5px;"></span>${s.source}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(s.sessions/max*100)}%;background:${c};"></div></div>
+      <span class="bar-val">${s.sessions.toLocaleString('id-ID')} sesi</span>
+    </div>`;
+  }).join('');
+})();
+{% endif %}
+</script>
+{% endblock %}

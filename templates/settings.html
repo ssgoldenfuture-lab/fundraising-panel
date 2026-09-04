@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% set active = "settings" %}
+{% block title %}Pengaturan — Fundraising GFI{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Pengaturan</h1>
+  <p>Kelola sumber data Google Sheets dan info sistem</p>
+</div>
+
+{% if request.query_params.get('ok') %}
+<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#2e7d32;">
+  Perubahan berhasil disimpan.
+</div>
+{% endif %}
+
+<!-- ── Tab nav ─────────────────────────────────────────────────────────────── -->
+<div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--line);padding-bottom:0;">
+  <button class="tab-btn active" onclick="switchTab('sources')">Sumber Data</button>
+  <button class="tab-btn" onclick="switchTab('sync')">Sync & Info</button>
+  <button class="tab-btn" onclick="switchTab('wabot')">WhatsApp Bot</button>
+</div>
+
+<style>
+.tab-btn{border:none;background:none;padding:8px 16px;font-size:13px;font-family:inherit;cursor:pointer;color:var(--ink-soft);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
+.tab-pane{display:none;}.tab-pane.active{display:block;}
+.form-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;}
+.form-group{display:flex;flex-direction:column;gap:4px;}
+.form-group label{font-size:11px;color:var(--ink-soft);font-weight:500;text-transform:uppercase;}
+.form-group input,.form-group select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;min-width:160px;}
+.form-group input:focus{outline:none;border-color:var(--accent);}
+.btn-sm{padding:8px 14px;font-size:12px;}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+.dot-on{background:var(--accent);}.dot-off{background:#ccc;}
+.tag{font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent);margin-left:4px;}
+</style>
+
+<!-- ── Tab 1: Sumber Data ─────────────────────────────────────────────────── -->
+<div class="tab-pane active" id="tab-sources">
+  <div class="card">
+    <h3>Sumber Data Google Sheets</h3>
+    <p style="font-size:12px;color:var(--ink-soft);margin-bottom:16px;">
+      Tambahkan spreadsheet rekap dari tahun lain. Setiap sumber aktif akan di-sync tiap 10 menit.
+      Link URL sheet boleh di-paste langsung — ID akan diekstrak otomatis.
+    </p>
+
+    <!-- Form tambah -->
+    <form method="post" action="/settings/sources/add" style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--line);">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nama/Label</label>
+          <input type="text" name="label" placeholder="Rekap 2022" required>
+        </div>
+        <div class="form-group" style="flex:1;min-width:280px;">
+          <label>Link atau Spreadsheet ID</label>
+          <input type="text" name="spreadsheet_id"
+                 placeholder="https://docs.google.com/spreadsheets/d/... atau ID saja" required>
+        </div>
+        <div class="form-group">
+          <label>Nama Tab Sheet</label>
+          <input type="text" name="sheet_name" value="rekap seluruh cs" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">+ Tambah</button>
+      </div>
+    </form>
+
+    <!-- Daftar sumber -->
+    <table>
+      <thead><tr>
+        <th>Status</th><th>Label</th><th>Spreadsheet ID</th>
+        <th>Tab Sheet</th><th class="num">Baris Terakhir</th>
+        <th>Sync Terakhir</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for s in sources %}
+      <tr>
+        <td>
+          <span class="status-dot {% if s.is_active %}dot-on{% else %}dot-off{% endif %}"></span>
+          {% if s.is_active %}<span style="font-size:12px;color:var(--accent);">Aktif</span>
+          {% else %}<span style="font-size:12px;color:#999;">Nonaktif</span>{% endif %}
+        </td>
+        <td><strong>{{ s.label }}</strong></td>
+        <td style="font-family:monospace;font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ s.spreadsheet_id }}">{{ s.spreadsheet_id }}</td>
+        <td style="font-size:12px;">{{ s.sheet_name }}</td>
+        <td class="num">{{ s.last_row_count or '-' }}</td>
+        <td style="font-size:11px;color:var(--ink-soft);">{{ s.last_synced_at or 'Belum pernah' }}</td>
+        <td style="white-space:nowrap;">
+          <form method="post" action="/settings/sources/toggle" style="display:inline;">
+            <input type="hidden" name="source_id" value="{{ s.id }}">
+            <button type="submit" class="btn btn-sm">{% if s.is_active %}Nonaktifkan{% else %}Aktifkan{% endif %}</button>
+          </form>
+          {% if s.id != 1 %}
+          <form method="post" action="/settings/sources/delete" style="display:inline;"
+                onsubmit="return confirm('Hapus sumber \'{{ s.label }}\'? Data yang sudah di-import tidak terhapus.')">
+            <input type="hidden" name="source_id" value="{{ s.id }}">
+            <button type="submit" class="btn btn-sm" style="color:var(--bad);border-color:var(--bad);">Hapus</button>
+          </form>
+          {% else %}
+          <span style="font-size:11px;color:var(--ink-soft);">sumber utama</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="color:var(--ink-soft);font-size:12px;">Belum ada sumber data.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- ── Tab 2: Sync & Info ─────────────────────────────────────────────────── -->
+<div class="tab-pane" id="tab-sync">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div class="card">
+      <h3>Database</h3>
+      <div class="kpi-label">Total baris donasi</div>
+      <div class="kpi-value">{{ total_rows }}</div>
+      <div class="kpi-sub">di semua sumber yang sudah di-sync</div>
+      <div style="margin-top:16px;">
+        <button class="btn btn-primary btn-sm" onclick="triggerSync(this)">Sync sekarang</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>5 Sync Terakhir</h3>
+      <table style="font-size:12px;">
+        <thead><tr><th>Waktu</th><th class="num">Baris</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for sl in sync_logs %}
+        <tr>
+          <td style="font-size:11px;">{{ sl.synced_at }}</td>
+          <td class="num">{{ sl.rows_upserted }}</td>
+          <td><span class="pill {% if sl.status!='ok' %}pill-bad{% endif %}">{{ sl.status }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="color:var(--ink-soft);">Belum ada log.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Konfigurasi Aktif</h3>
+    <p style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">Sumber data yang akan di-sync saat ini:</p>
+    {% for s in sources %}
+    {% if s.is_active %}
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;">
+      <span class="status-dot dot-on"></span>
+      <strong>{{ s.label }}</strong>
+      <span style="font-size:11px;color:var(--ink-soft);">{{ s.spreadsheet_id }} / {{ s.sheet_name }}</span>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── Tab 3: WhatsApp Bot ─────────────────────────────────────────────────── -->
+<div class="tab-pane" id="tab-wabot">
+
+  <!-- Status Device -->
+  <div class="card" style="margin-bottom:14px;">
+    <h3>Status Koneksi Device</h3>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div id="wa-status-text" style="font-size:13px;color:var(--ink-soft);">Belum dicek...</div>
+      <button class="btn btn-sm" onclick="checkWaDevice(this)">🔌 Cek Status</button>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--ink-soft);">
+      Device Key: <code>••••••••b165f19</code> &nbsp;|&nbsp;
+      Webhook URL: <code>https://fundraising.goldenfutureindonesia.org/webhook/replai</code>
+      <span style="font-size:10px;color:#888;"> — daftarkan di dashboard Replai.id</span>
+    </div>
+  </div>
+
+  <!-- Konfigurasi Laporan Harian -->
+  <div class="card" style="margin-bottom:14px;">
+    <h3>Laporan Harian Otomatis</h3>
+    <p style="font-size:12px;color:var(--ink-soft);margin-bottom:14px;">Laporan dikirim otomatis setiap hari ke grup WA yang ditentukan.</p>
+    <div class="form-row">
+      <div class="form-group" style="flex:1;min-width:220px;">
+        <label>ID Grup WA</label>
+        <input type="text" id="wa-group-id" placeholder="120363xxxxxxxxxx@g.us atau angka numerik"
+               style="font-family:monospace;">
+        <span style="font-size:10px;color:var(--ink-soft);">Klik "Ambil Daftar Grup" untuk menemukan ID</span>
+      </div>
+      <div class="form-group">
+        <label>Jam Kirim (WIB)</label>
+        <select id="wa-hour" style="min-width:80px;">
+          <option value="6">06:00</option>
+          <option value="7" selected>07:00</option>
+          <option value="8">08:00</option>
+          <option value="9">09:00</option>
+          <option value="17">17:00</option>
+          <option value="18">18:00</option>
+          <option value="20">20:00</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-sm btn-primary" onclick="saveWaConfig(this)">💾 Simpan Konfigurasi</button>
+      <button class="btn btn-sm" onclick="getWaGroups(this)">📋 Ambil Daftar Grup</button>
+      <button class="btn btn-sm" onclick="sendReportNow(this)">📤 Kirim Laporan Sekarang</button>
+    </div>
+    <div id="wa-groups-list" style="margin-top:12px;display:none;"></div>
+  </div>
+
+  <!-- Test Kirim Pesan -->
+  <div class="card" style="margin-bottom:14px;">
+    <h3>Test Kirim Pesan Manual</h3>
+    <div class="form-row">
+      <div class="form-group" style="min-width:200px;">
+        <label>Nomor / Group ID</label>
+        <input type="text" id="wa-test-phone" placeholder="6281234567890 atau group@g.us">
+      </div>
+      <div class="form-group" style="flex:1;min-width:250px;">
+        <label>Pesan</label>
+        <input type="text" id="wa-test-text" value="Halo dari Fundraising GFI! 👋">
+      </div>
+      <div class="form-group" style="justify-content:flex-end;">
+        <label>&nbsp;</label>
+        <button class="btn btn-sm btn-primary" onclick="sendTestMsg(this)">📨 Kirim Test</button>
+      </div>
+    </div>
+    <div id="wa-test-result" style="font-size:12px;margin-top:8px;"></div>
+  </div>
+
+  <!-- Log Broadcast -->
+  <div class="card">
+    <h3>Log Pengiriman WA</h3>
+    <div id="wa-logs-loading" style="font-size:12px;color:var(--ink-soft);">Memuat log...</div>
+    <div id="wa-logs-table" style="display:none;">
+      <table>
+        <thead><tr><th>Waktu</th><th>Target</th><th>Status</th><th>Trigger</th><th>Pesan (Singkat)</th></tr></thead>
+        <tbody id="wa-logs-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'wabot') { loadWaLogs(); }
+}
+
+async function triggerSync(btn) {
+  btn.disabled = true;
+  btn.textContent = 'Syncing...';
+  try {
+    const r = await fetch('/api/sync', {method:'POST'});
+    const d = await r.json();
+    btn.textContent = 'Selesai!';
+    setTimeout(()=>window.location.reload(), 1000);
+  } catch(e) {
+    btn.textContent = 'Gagal';
+    btn.disabled = false;
+  }
+}
+
+// ── WA Bot helpers ──────────────────────────────────────────────────────────
+async function checkWaDevice(btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳ Mengecek...';
+  const el = document.getElementById('wa-status-text');
+  try {
+    const r = await fetch('/api/wa/device-status');
+    const d = await r.json();
+    if (d.ok) {
+      el.innerHTML = '<span style="color:#166534;font-weight:600;">✅ Device terhubung</span>';
+    } else {
+      el.innerHTML = `<span style="color:#991B1B;">❌ ${d.error || 'Tidak terhubung'}</span>`;
+    }
+  } catch(e) {
+    el.textContent = '❌ Gagal menghubungi server';
+  }
+  btn.disabled = false;
+  btn.textContent = '🔌 Cek Status';
+}
+
+async function getWaGroups(btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳...';
+  const el = document.getElementById('wa-groups-list');
+  try {
+    const r = await fetch('/api/wa/groups');
+    const d = await r.json();
+    const groups = d.groups || [];
+    if (!groups.length) {
+      el.innerHTML = '<p style="font-size:12px;color:var(--ink-soft);">Tidak ada grup ditemukan.</p>';
+    } else {
+      el.innerHTML = '<p style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">Klik ID untuk mengisi field Grup:</p>' +
+        groups.slice(0, 20).map(g => {
+          const id = g.id || g.phone || JSON.stringify(g);
+          const name = g.name || g.subject || id;
+          return `<div style="padding:4px 0;font-size:12px;"><a href="#" onclick="document.getElementById('wa-group-id').value='${id}';return false;" style="color:var(--accent);">${name}</a> — <code style="font-size:10px;">${id}</code></div>`;
+        }).join('');
+    }
+    el.style.display = 'block';
+  } catch(e) {
+    el.innerHTML = '<p style="color:#991B1B;font-size:12px;">Gagal mengambil grup</p>';
+    el.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = '📋 Ambil Daftar Grup';
+}
+
+async function saveWaConfig(btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳ Menyimpan...';
+  try {
+    const r = await fetch('/api/wa/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        group_id: document.getElementById('wa-group-id').value.trim(),
+        hour: parseInt(document.getElementById('wa-hour').value)
+      })
+    });
+    const d = await r.json();
+    btn.textContent = d.ok ? '✅ Tersimpan!' : '❌ Gagal';
+  } catch(e) {
+    btn.textContent = '❌ Error';
+  }
+  setTimeout(() => { btn.disabled = false; btn.textContent = '💾 Simpan Konfigurasi'; }, 2500);
+}
+
+async function sendReportNow(btn) {
+  if (!confirm('Kirim laporan WA sekarang?')) return;
+  btn.disabled = true;
+  btn.textContent = '⏳ Mengirim...';
+  try {
+    const r = await fetch('/api/wa/send-report-now', {method:'POST'});
+    const d = await r.json();
+    btn.textContent = d.ok ? '✅ Terkirim!' : `❌ ${d.error||'Gagal'}`;
+    if (d.ok) setTimeout(() => loadWaLogs(), 2000);
+  } catch(e) {
+    btn.textContent = '❌ Error';
+  }
+  setTimeout(() => { btn.disabled = false; btn.textContent = '📤 Kirim Laporan Sekarang'; }, 4000);
+}
+
+async function sendTestMsg(btn) {
+  const phone = document.getElementById('wa-test-phone').value.trim();
+  const text  = document.getElementById('wa-test-text').value.trim();
+  const isGrp = phone.includes('@g.us');
+  if (!phone) { alert('Isi nomor/group dulu'); return; }
+  btn.disabled = true;
+  btn.textContent = '⏳...';
+  const result = document.getElementById('wa-test-result');
+  try {
+    const r = await fetch('/api/wa/test-send', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({phone, text, is_group: isGrp})
+    });
+    const d = await r.json();
+    result.innerHTML = d.ok
+      ? '<span style="color:#166534;">✅ Pesan terkirim!</span>'
+      : `<span style="color:#991B1B;">❌ ${d.error||JSON.stringify(d)}</span>`;
+    if (d.ok) setTimeout(() => loadWaLogs(), 1500);
+  } catch(e) {
+    result.innerHTML = '<span style="color:#991B1B;">❌ Gagal</span>';
+  }
+  btn.disabled = false;
+  btn.textContent = '📨 Kirim Test';
+}
+
+async function loadWaLogs() {
+  const tbody = document.getElementById('wa-logs-tbody');
+  const loading = document.getElementById('wa-logs-loading');
+  const table = document.getElementById('wa-logs-table');
+  try {
+    const r = await fetch('/api/wa/logs?limit=15');
+    const logs = await r.json();
+    if (!Array.isArray(logs) || !logs.length) {
+      loading.textContent = 'Belum ada log pengiriman.';
+      return;
+    }
+    tbody.innerHTML = logs.map(l => {
+      const color = l.status === 'ok' ? '#166534' : '#991B1B';
+      const icon  = l.status === 'ok' ? '✅' : '❌';
+      const time  = (l.sent_at || '').slice(0, 16).replace('T', ' ');
+      const msg   = (l.message || '').slice(0, 60) + ((l.message||'').length > 60 ? '…' : '');
+      return `<tr>
+        <td style="font-size:11px;">${time}</td>
+        <td style="font-size:11px;font-family:monospace;">${(l.target||'').slice(0,20)}</td>
+        <td><span style="color:${color};font-weight:600;">${icon} ${l.status}</span></td>
+        <td style="font-size:11px;">${l.trigger||''}</td>
+        <td style="font-size:11px;color:var(--ink-soft);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${msg}</td>
+      </tr>`;
+    }).join('');
+    loading.style.display = 'none';
+    table.style.display = 'block';
+  } catch(e) {
+    loading.textContent = 'Gagal memuat log.';
+  }
+}
+</script>
+{% endblock %}

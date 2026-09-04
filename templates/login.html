@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login — Fundraising GFI</title>
+<style>
+:root{--bg:#F7F6F2;--card:#fff;--ink:#1B2B22;--ink-soft:#5A6B60;--accent:#2F6B4F;--accent-soft:#E4EFE8;--bad:#B04A3F;--line:#E3E1D8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.06);}
+.logo{font-size:20px;font-weight:700;color:var(--accent);margin-bottom:6px;}
+.sub{font-size:13px;color:var(--ink-soft);margin-bottom:28px;}
+label{display:block;font-size:12px;color:var(--ink-soft);font-weight:500;margin-bottom:5px;}
+input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;outline:none;background:#fff;transition:border-color .15s;}
+input:focus{border-color:var(--accent);}
+.field{margin-bottom:16px;}
+.btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;transition:opacity .15s;}
+.btn:hover{opacity:.88;}
+.err{background:#fff0ef;border:1px solid #e8b4b0;border-radius:8px;padding:10px 12px;font-size:13px;color:var(--bad);margin-bottom:16px;}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">Fundraising GFI</div>
+  <div class="sub">Golden Future Indonesia · Internal Dashboard</div>
+  {% if error %}<div class="err">Username atau password salah.</div>{% endif %}
+  <form method="post" action="/login">
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" required autofocus placeholder="username">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required placeholder="••••••••">
+    </div>
+    <button type="submit" class="btn">Masuk</button>
+  </form>
+</div>
+</body>
+</html>

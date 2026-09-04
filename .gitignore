@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Environment secrets — JANGAN PERNAH COMMIT
+.env
+*.env
+
+# Database (data sensitif donatur)
+*.sqlite
+*.sqlite3
+*.db
+
+# Active groups / session state
+active_groups.json
+sessions/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Ingest data mentah (bisa besar)
+ingest/raw/
+ingest/*.csv
+ingest/*.xlsx

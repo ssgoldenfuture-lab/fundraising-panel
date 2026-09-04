@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+{% set active = "crm" %}
+{% block title %}CRM — Fundraising GFI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Laporan Fundraising — Rekap CS</h1>
+  <p>Golden Future Indonesia · data konfirmasi CS (bukan mutasi bank riil)</p>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <button class="btn" id="btn-all"   onclick="setPreset('all')">Semua</button>
+  <button class="btn" id="btn-last3" onclick="setPreset('last3')">3 bln terakhir</button>
+  <button class="btn" id="btn-last1" onclick="setPreset('last1')">Bulan ini</button>
+  <button class="btn" id="btn-today" onclick="setPreset('today')">Hari ini</button>
+  <span style="width:1px;background:var(--line);height:20px;"></span>
+  <label style="font-size:12px;color:var(--ink-soft);">Dari <input type="date" id="dateFrom" value="{{ date_from }}"></label>
+  <label style="font-size:12px;color:var(--ink-soft);">Sampai <input type="date" id="dateTo" value="{{ date_to }}"></label>
+  <button class="btn btn-primary" onclick="applyCustomRange()">Terapkan</button>
+  <span style="width:1px;background:var(--line);height:20px;"></span>
+  <label style="font-size:12px;color:var(--ink-soft);">Grafik</label>
+  <select id="granularity" onchange="applyCustomRange()">
+    <option value="auto" {% if gran=='auto' %}selected{% endif %}>Otomatis</option>
+    <option value="day"  {% if gran=='day'  %}selected{% endif %}>Per hari</option>
+    <option value="month"{% if gran=='month'%}selected{% endif %}>Per bulan</option>
+  </select>
+  {% if user.r == 'admin' %}
+  <button class="btn" onclick="manualSync()" id="syncBtn">⟳ Sync</button>
+  {% endif %}
+</div>
+
+<!-- Filter Tahun -->
+{% if all_years and all_years|length > 1 %}
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+  <span style="font-size:11px;color:var(--ink-soft);font-weight:500;text-transform:uppercase;">Filter Tahun:</span>
+  <button class="yr-chip {% if not selected_years %}yr-chip-on{% endif %}"
+          onclick="toggleYear(null)">Semua</button>
+  {% for yr in all_years %}
+  <button class="yr-chip {% if yr in selected_years %}yr-chip-on{% endif %}"
+          onclick="toggleYear({{ yr }})">{{ yr }}</button>
+  {% endfor %}
+</div>
+{% endif %}
+
+<style>
+.yr-chip{border:1px solid var(--line);border-radius:20px;padding:3px 12px;font-size:12px;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--ink-soft);transition:all .15s;}
+.yr-chip:hover{border-color:var(--accent);color:var(--accent);}
+.yr-chip-on{background:var(--accent);color:#fff;border-color:var(--accent);}
+</style>
+
+<!-- Narasi -->
+<div class="summary" id="summaryBox">{{ narasi }}</div>
+
+<!-- KPI -->
+<div class="grid-kpi">
+  <div class="card">
+    <div class="kpi-label">Total Donasi</div>
+    <div class="kpi-value" id="kpiTotal">{{ kpi.total | rp }}</div>
+    <div class="kpi-sub">seluruh CS (non-institusional)</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">Jumlah Transaksi</div>
+    <div class="kpi-value" id="kpiJumlah">{{ kpi.jumlah }}</div>
+    <div class="kpi-sub">konfirmasi dalam periode</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">Rata-rata per Donasi</div>
+    <div class="kpi-value" id="kpiRata">{{ kpi.rata | rp }}</div>
+    <div class="kpi-sub">nominal rata-rata</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">CS Terbaik</div>
+    <div class="kpi-value" style="font-size:18px;" id="kpiCS">{{ kpi.best_cs }}</div>
+    <div class="kpi-sub">{{ kpi.best_cs_total | rp }}</div>
+  </div>
+</div>
+
+<!-- Tren + Channel -->
+<div class="row2">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+      <h3 style="margin:0;">Tren donasi</h3>
+      <span id="trendLabel" style="font-size:11px;color:var(--ink-soft);"></span>
+    </div>
+    <div style="position:relative;height:220px;width:100%;">
+      <canvas id="trendChart"></canvas>
+    </div>
+    <p id="trendEmpty" style="display:none;text-align:center;color:var(--ink-soft);font-size:13px;padding:60px 0;">Tidak ada data dalam periode ini</p>
+  </div>
+  <div class="card">
+    <h3>Sumber traffic</h3>
+    <div id="channelBars"></div>
+  </div>
+</div>
+
+<!-- Ranking CS -->
+<div class="card">
+  <h3>Capaian per CS <span style="font-size:11px;font-weight:400;color:var(--ink-soft);">(klik baris untuk detail)</span></h3>
+  <table>
+    <thead><tr>
+      <th>CS</th><th class="num">Total</th><th class="num">Transaksi</th>
+      <th>Tren</th><th>Program favorit</th>
+    </tr></thead>
+    <tbody id="csTbody">
+    {% for cs in cs_rank %}
+    <tr class="row-link" onclick="openCSModal('{{ cs.cs }}','{{ date_from }}','{{ date_to }}')">
+      <td><strong>{{ cs.cs }}</strong></td>
+      <td class="num">{{ cs.total | rp }}</td>
+      <td class="num">{{ cs.jumlah }}</td>
+      <td><span class="pill">–</span></td>
+      <td>{{ cs.program_favorit }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Program + Institusional -->
+<div class="row2">
+  <div class="card">
+    <h3>Program paling ramai</h3>
+    <table>
+      <thead><tr><th>Program</th><th class="num">Nominal</th><th class="num">Transaksi</th></tr></thead>
+      <tbody>
+      {% for p in programs %}
+      <tr>
+        <td>{{ p.program }}</td>
+        <td class="num">{{ p.total | rp }}</td>
+        <td class="num">{{ p.jumlah }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Donasi institusional <span style="font-size:11px;font-weight:400;color:var(--ink-soft);">(di luar evaluasi CS)</span></h3>
+    <table>
+      <thead><tr><th>Donatur</th><th>Tanggal</th><th class="num">Nominal</th></tr></thead>
+      <tbody>
+      {% for i in inst %}
+      <tr>
+        <td>{{ i.donor_name }}</td>
+        <td>{{ i.tanggal }}</td>
+        <td class="num">{{ i.nominal | rp }}</td>
+      </tr>
+      {% endfor %}
+      {% if not inst %}<tr><td colspan="3" style="color:var(--ink-soft);font-size:12px;">Tidak ada dalam periode ini</td></tr>{% endif %}
+      </tbody>
+    </table>
+    <p style="font-size:11px;color:var(--ink-soft);margin-top:10px;">Nilai besar dari institusi/kemitraan — tercatat total lembaga, tidak masuk performa personal CS.</p>
+  </div>
+</div>
+
+<!-- Sync info -->
+{% if last_sync %}
+<p id="syncBadge" style="font-size:11px;color:var(--ink-soft);margin-top:4px;">
+  <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:{% if last_sync.status=='ok' %}var(--accent){% else %}var(--bad){% endif %};margin-right:4px;"></span>
+  Sync terakhir: {{ last_sync.synced_at }} &middot; {{ last_sync.rows_fetched }} baris diambil
+</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DATE_FROM = '{{ date_from }}';
+const DATE_TO   = '{{ date_to }}';
+
+// ── Narasi otomatis ───────────────────────────────────────────────────────────
+(function(){
+  const total  = {{ kpi.total }};
+  const jumlah = {{ kpi.jumlah }};
+  const rata   = {{ kpi.rata }};
+  const bestCS = '{{ kpi.best_cs }}';
+  const bestTotal = {{ kpi.best_cs_total }};
+  function rp(v){return 'Rp '+Number(v).toLocaleString('id-ID');}
+  const narasi = `Dalam periode ini, <strong>${jumlah} donasi</strong> masuk dengan total <strong>${rp(total)}</strong> `+
+    `(rata-rata ${rp(rata)} per transaksi). `+
+    (bestCS!=='-'?`CS dengan capaian terbaik adalah <strong>${bestCS}</strong> dengan total ${rp(bestTotal)}.`:'')+
+    ` Data dikecualikan dari donasi institusional.`;
+  document.getElementById('summaryBox').innerHTML = narasi;
+})();
+
+// ── Tren chart ────────────────────────────────────────────────────────────────
+const TREN_DATA = {{ tren | tojson }};
+(function(){
+  const labels = TREN_DATA.map(r=>r.label);
+  // null-safe: ganti null/undefined dengan 0
+  const vals   = TREN_DATA.map(r=> r.total != null ? Number(r.total) : 0);
+  const total  = vals.reduce((a,b)=>a+b, 0);
+
+  // Update label periode
+  const lbl = document.getElementById('trendLabel');
+  if(lbl) lbl.textContent = TREN_DATA.length
+    ? `${TREN_DATA.length} periode · total ${fmtRpShort(total)}`
+    : '';
+
+  // Kalau kosong, show empty state
+  if(!TREN_DATA.length || total === 0){
+    document.getElementById('trendChart').style.display = 'none';
+    document.getElementById('trendEmpty').style.display = 'block';
+    return;
+  }
+
+  new Chart(document.getElementById('trendChart'),{
+    type:'bar',
+    data:{labels,datasets:[{
+      data:vals,
+      backgroundColor:'#2F6B4F',
+      borderRadius:3,
+      hoverBackgroundColor:'#236040'
+    }]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>'Rp '+Number(ctx.raw).toLocaleString('id-ID')}}
+      },
+      scales:{
+        y:{
+          beginAtZero:true,
+          ticks:{callback:v=>{
+            if(v>=1e9) return 'Rp '+(v/1e9).toFixed(1)+'M';
+            if(v>=1e6) return 'Rp '+(v/1e6).toFixed(0)+'jt';
+            return 'Rp '+v;
+          }},
+          grid:{color:'#E3E1D8'}
+        },
+        x:{grid:{display:false}}
+      }
+    }
+  });
+})();
+
+// ── Channel bars ──────────────────────────────────────────────────────────────
+(function(){
+  const data = {{ channels | tojson }};
+  if(!data.length) return;
+  const max = data[0].total;
+  document.getElementById('channelBars').innerHTML = data.slice(0,8).map(c=>`
+    <div class="bar-item">
+      <span class="bar-name">${c.channel||'Lainnya'}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(c.total/max*100).toFixed(0)}%"></div></div>
+      <span class="bar-val">${fmtRpShort(c.total)}</span>
+    </div>`).join('');
+})();
+
+// ── Date presets ──────────────────────────────────────────────────────────────
+function setPreset(p){
+  const today = new Date();
+  const iso   = d=>d.toISOString().slice(0,10);
+  let from, to = iso(today);
+  if(p==='all')   { from='2020-01-01'; }
+  else if(p==='last3'){ const d=new Date(today); d.setMonth(d.getMonth()-3); from=iso(d); }
+  else if(p==='last1'){ from=iso(new Date(today.getFullYear(),today.getMonth(),1)); }
+  else { from=to; }
+  const gran = document.getElementById('granularity').value;
+  const yearsParam = getYearsParam();
+  window.location.href=`/crm?from=${from}&to=${to}&gran=${gran}${yearsParam}`;
+}
+function applyCustomRange(){
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  const gran = document.getElementById('granularity').value;
+  const yearsParam = getYearsParam();
+  if(from&&to) window.location.href=`/crm?from=${from}&to=${to}&gran=${gran}${yearsParam}`;
+}
+
+// ── Year filter ────────────────────────────────────────────────────────────────
+const _selectedYears = new Set({{ selected_years | tojson }});
+function getYearsParam(){
+  if(_selectedYears.size===0) return '';
+  return '&years=' + [..._selectedYears].join(',');
+}
+function toggleYear(yr){
+  if(yr===null){ _selectedYears.clear(); }
+  else if(_selectedYears.has(yr)){ _selectedYears.delete(yr); }
+  else { _selectedYears.add(yr); }
+  const gran = document.getElementById('granularity').value;
+  const yearsParam = getYearsParam();
+  if(yearsParam){
+    // Year filter aktif: tidak kirim from/to biar backend pakai year-only query
+    window.location.href=`/crm?gran=${gran}${yearsParam}`;
+  } else {
+    // Kembali ke "Semua": pakai date range saat ini
+    const from = document.getElementById('dateFrom').value;
+    const to   = document.getElementById('dateTo').value;
+    window.location.href=`/crm?from=${from}&to=${to}&gran=${gran}`;
+  }
+}
+async function manualSync(){
+  const btn=document.getElementById('syncBtn');
+  btn.disabled=true; btn.textContent='Syncing...';
+  try{
+    const r=await fetch('/api/sync',{method:'POST'});
+    const d=await r.json();
+    if(d.ok){
+      btn.textContent = 'Selesai';
+      // Update badge saja, tidak reload halaman
+      setTimeout(()=>{ btn.disabled=false; btn.textContent='⟳ Sync'; }, 3000);
+      // Refresh info sync badge diam-diam
+      fetchSyncBadge();
+    } else {
+      btn.textContent='Error';
+      btn.disabled=false;
+    }
+  }catch(e){btn.textContent='Gagal';btn.disabled=false;}
+}
+
+// ── Polling sync badge setiap 5 menit (tidak reload halaman) ──────────────────
+async function fetchSyncBadge(){
+  try {
+    const r = await fetch('/api/sync-info');
+    if(!r.ok) return;
+    const d = await r.json();
+    const el = document.getElementById('syncBadge');
+    if(el && d.synced_at){
+      el.innerHTML = (d.status==='ok'
+        ? '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:4px;"></span>'
+        : '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--bad);margin-right:4px;"></span>')
+        + 'Sync terakhir: ' + d.synced_at + ' &middot; ' + d.rows_fetched + ' baris';
+    }
+  } catch(e) { /* silent */ }
+}
+// Poll tiap 5 menit — tidak ada refresh halaman, tidak ada flicker
+setInterval(fetchSyncBadge, 5 * 60 * 1000);
+</script>
+{% endblock %}

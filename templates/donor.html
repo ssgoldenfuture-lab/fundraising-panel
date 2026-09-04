@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% set active = "donor" %}
+{% block title %}Analisis Donatur — Fundraising GFI{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Analisis Donatur</h1>
+  <p>Agregasi per nomor HP — seluruh periode</p>
+</div>
+
+<!-- KPI -->
+<div class="grid-kpi" style="grid-template-columns:repeat(3,1fr);">
+  <div class="card">
+    <div class="kpi-label">Donatur Unik</div>
+    <div class="kpi-value">{{ kpi.total_unik }}</div>
+    <div class="kpi-sub">berdasarkan nomor HP</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">Donatur Repeat</div>
+    <div class="kpi-value">{{ kpi.repeat_donor }}</div>
+    <div class="kpi-sub">donasi lebih dari 1×</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">Multi-CS <span class="pill pill-bad">⚠</span></div>
+    <div class="kpi-value">{{ kpi.multi_cs }}</div>
+    <div class="kpi-sub">ditangani oleh >1 CS</div>
+  </div>
+</div>
+
+<!-- Search + Tabel -->
+<div class="card">
+  <h3>Cari donatur</h3>
+  <form method="get" action="/donor" class="search-wrap">
+    <input type="text" name="q" value="{{ search }}" placeholder="Cari nama atau nomor HP..." autofocus
+           oninput="this.form.submit()">
+  </form>
+  <table>
+    <thead><tr>
+      <th>Nama</th><th>No HP</th><th class="num">Total</th>
+      <th class="num">Donasi</th><th>CS</th><th>Program</th>
+    </tr></thead>
+    <tbody>
+    {% for d in donors %}
+    <tr class="row-link" onclick="openDonorModal('{{ d.donor_phone }}','{{ d.donor_name|replace("'","") }}')">
+      <td>
+        {{ d.donor_name or '-' }}
+        {% if d.cs_count > 1 %}<span class="pill pill-bad" style="margin-left:4px;">multi</span>{% endif %}
+      </td>
+      <td style="font-family:monospace;font-size:12px;">{{ d.donor_phone }}</td>
+      <td class="num">{{ d.total | rp }}</td>
+      <td class="num">{{ d.jumlah }}</td>
+      <td>{{ d.cs_list or '-' }}</td>
+      <td>{{ d.program_raw or '-' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" style="color:var(--ink-soft);">Tidak ada data.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p style="font-size:11px;color:var(--ink-soft);margin-top:10px;">
+    Menampilkan {{ donors|length }} donatur.
+    {% if donors|length == 100 %} (dibatasi 100 — gunakan kolom pencarian untuk filter lebih spesifik){% endif %}
+  </p>
+</div>
+
+<!-- Donasi Institusional -->
+<div class="card" style="margin-top:8px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+    <div>
+      <h3 style="margin:0;">Donasi Institusional / Kemitraan</h3>
+      <p style="font-size:12px;color:var(--ink-soft);margin:4px 0 0;">
+        Tercatat dalam total lembaga, <strong>dikecualikan</strong> dari evaluasi performa CS personal.
+      </p>
+    </div>
+    {% if user.r == 'admin' %}
+    <button class="btn btn-sm" onclick="toggleInstForm()" id="btnInstForm">+ Tambah</button>
+    {% endif %}
+  </div>
+
+  <!-- Form tambah (admin only, toggle) -->
+  {% if user.r == 'admin' %}
+  <div id="instForm" style="display:none;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px;margin:12px 0;">
+    <form method="post" action="/settings/exclusions/add">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <label style="font-size:11px;color:var(--ink-soft);font-weight:500;">NAMA DONATUR</label>
+          <input type="text" name="donor_name" placeholder="PT Contoh / Yayasan" required
+                 style="border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;min-width:180px;">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <label style="font-size:11px;color:var(--ink-soft);font-weight:500;">TANGGAL</label>
+          <input type="date" name="tanggal" required
+                 style="border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <label style="font-size:11px;color:var(--ink-soft);font-weight:500;">NOMINAL (RP)</label>
+          <input type="number" name="nominal" placeholder="100000000" min="1" required
+                 style="border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;min-width:140px;">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
+          <label style="font-size:11px;color:var(--ink-soft);font-weight:500;">CATATAN</label>
+          <input type="text" name="note" placeholder="Kemitraan / Sponsorship"
+                 style="border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  <table style="margin-top:8px;">
+    <thead><tr>
+      <th>Donatur</th><th>Tanggal</th><th class="num">Nominal</th><th>Catatan</th>
+      {% if user.r == 'admin' %}<th></th>{% endif %}
+    </tr></thead>
+    <tbody>
+    {% for ex in exclusions %}
+    <tr>
+      <td><strong>{{ ex.donor_name }}</strong></td>
+      <td>{{ ex.tanggal }}</td>
+      <td class="num">{{ ex.nominal | rp }}</td>
+      <td style="font-size:12px;color:var(--ink-soft);">{{ ex.note or '-' }}</td>
+      {% if user.r == 'admin' %}
+      <td>
+        <form method="post" action="/settings/exclusions/delete"
+              onsubmit="return confirm('Hapus {{ ex.donor_name }} dari daftar pengecualian?')">
+          <input type="hidden" name="exclusion_id" value="{{ ex.id }}">
+          <button type="submit" class="btn btn-sm" style="color:var(--bad);border-color:var(--bad);font-size:11px;">Hapus</button>
+        </form>
+      </td>
+      {% endif %}
+    </tr>
+    {% else %}
+    <tr><td colspan="5" style="color:var(--ink-soft);font-size:12px;">Belum ada data institusional.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleInstForm(){
+  const f = document.getElementById('instForm');
+  const b = document.getElementById('btnInstForm');
+  if(f.style.display==='none'){ f.style.display='block'; b.textContent='Batal'; }
+  else { f.style.display='none'; b.textContent='+ Tambah'; }
+}
+</script>
+{% endblock %}

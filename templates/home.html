@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% set active = "home" %}
+{% block title %}Ringkasan — Fundraising GFI{% endblock %}
+
+{% block content %}
+<div class="page-header no-print" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>Ringkasan</h1>
+    <p>Golden Future Indonesia · laporan otomatis untuk pimpinan</p>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button onclick="window.print()" class="btn btn-primary no-print" id="printBtn">
+      🖨️ Cetak / Simpan PDF
+    </button>
+    <a href="/crm" class="btn no-print">Lihat CRM lengkap →</a>
+  </div>
+</div>
+
+<!-- ══ PRINT HEADER (hanya muncul saat print) ════════════════════════════════ -->
+<div class="print-only" style="text-align:center;margin-bottom:24px;border-bottom:2px solid #2F6B4F;padding-bottom:16px;">
+  <h2 style="font-size:20px;margin:0;color:#2F6B4F;">Golden Future Indonesia</h2>
+  <p style="font-size:13px;color:#666;margin:4px 0 0;">Laporan Ringkasan Fundraising — dicetak {{ crm_now.d0 }} s/d {{ crm_now.d1 }}</p>
+</div>
+
+<!-- ══ RINGKASAN EKSEKUTIF ════════════════════════════════════════════════════ -->
+<div class="card" style="background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #86efac;margin-bottom:12px;">
+  <div style="display:flex;align-items:flex-start;gap:12px;">
+    <span style="font-size:28px;">📋</span>
+    <div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#166534;margin-bottom:8px;">Ringkasan Eksekutif</div>
+      <p style="font-size:14px;line-height:1.8;color:#1a1a1a;margin:0;">{{ narasi }}</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ KPI BERDAMPINGAN: CRM vs Online ════════════════════════════════════════ -->
+<div style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;">
+  📊 Kinerja Bulan Ini — {{ crm_now.d0 }} s/d {{ crm_now.d1 }}
+</div>
+
+<div class="row2" style="margin-bottom:12px;">
+  <!-- CRM -->
+  <div class="card" style="border-top:4px solid #2F6B4F;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;">
+      <h3 style="margin:0;font-size:14px;">Donasi CS (Manual)</h3>
+      <span style="font-size:11px;color:var(--ink-soft);">konfirmasi WhatsApp</span>
+    </div>
+    <div class="kpi-value" style="font-size:28px;margin-bottom:4px;">{{ crm_now.total | int | rp }}</div>
+    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;">{{ crm_now.jumlah | format_num }} transaksi dikonfirmasi</div>
+
+    {% set chg = crm_a2a.pct %}
+    <div style="display:flex;align-items:center;gap:6px;font-size:13px;">
+      {% if chg is not none %}
+      <span style="background:{% if chg >= 0 %}#DCFCE7;color:#166534{% else %}#FEE2E2;color:#991B1B{% endif %};
+                  padding:3px 10px;border-radius:20px;font-weight:600;">
+        {% if chg >= 0 %}↑ {{ chg | abs | int }}%{% else %}↓ {{ chg | abs | int }}%{% endif %}
+      </span>
+      <span style="color:var(--ink-soft);">vs 1–{{ crm_a2a.day_n }} {{ crm_a2a.d0_prev[:7] }} (apple-to-apple)</span>
+      {% else %}
+      <span style="color:var(--ink-soft);">Belum ada data pembanding</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Online -->
+  <div class="card" style="border-top:4px solid #4A90A4;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;">
+      <h3 style="margin:0;font-size:14px;">Transaksi Online</h3>
+      <span style="font-size:11px;color:var(--ink-soft);">berdonasi.goldenfutureindonesia.org</span>
+    </div>
+    {% if online_ok and online_now.total > 0 %}
+    <div class="kpi-value" style="font-size:28px;margin-bottom:4px;">{{ online_now.revenue | int | rp }}</div>
+    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;">
+      {{ online_now.paid }} dari {{ online_now.total }} transaksi berhasil bayar
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:13px;">
+      <span style="background:{% if online_now.conv_rate >= 70 %}#DCFCE7;color:#166534{% elif online_now.conv_rate >= 40 %}#FEF3C7;color:#92400E{% else %}#FEE2E2;color:#991B1B{% endif %};
+                  padding:3px 10px;border-radius:20px;font-weight:600;">
+        Konversi {{ online_now.conv_rate }}%
+      </span>
+      <span style="color:var(--ink-soft);">{{ online_now.pending }} menunggu konfirmasi</span>
+    </div>
+    {% else %}
+    <div style="color:var(--ink-soft);font-size:13px;padding:20px 0;">
+      {% if not online_ok %}Data transaksi online tidak tersedia{% else %}Belum ada transaksi online bulan ini{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Gabungan -->
+{% set total_gabungan = crm_now.total + (online_now.revenue if online_ok else 0) %}
+<div class="card" style="background:var(--bg);border:1px solid var(--line);padding:12px 20px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+  <div>
+    <span style="font-size:12px;color:var(--ink-soft);">Total Penerimaan Gabungan (CRM + Online)</span>
+    <div style="font-size:22px;font-weight:700;color:var(--accent);">{{ total_gabungan | int | rp }}</div>
+  </div>
+  <a href="/crm" class="btn no-print" style="font-size:12px;">Lihat detail CRM →</a>
+</div>
+
+<!-- ══ ALERT YANG PERLU PERHATIAN ════════════════════════════════════════════ -->
+{% set has_alert = cs_alert or new_big or stuck or hari_buruk %}
+<div style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;">
+  🚨 Hal yang Perlu Perhatian
+</div>
+
+{% if not has_alert %}
+<div class="card" style="background:#f0fdf4;border:1px solid #86efac;text-align:center;padding:24px;">
+  <span style="font-size:24px;">✅</span>
+  <p style="color:#166534;font-size:13px;margin:8px 0 0;">Tidak ada hal yang perlu perhatian khusus saat ini.</p>
+</div>
+{% else %}
+<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+
+  {% if hari_buruk %}
+  <div class="card alert-card" style="border-left:4px solid #EF4444;">
+    <div class="alert-title" style="color:#991B1B;">📉 Hari dengan konversi rendah (7 hari terakhir)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      {% for h in hari_buruk %}
+      <span style="background:#FEE2E2;color:#991B1B;padding:3px 10px;border-radius:20px;font-size:12px;">
+        {{ h.label }} · {{ h.paid }}/{{ h.total }} transaksi · {{ h.rate }}%
+      </span>
+      {% endfor %}
+    </div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;">
+      Hari-hari ini ada transaksi masuk tapi banyak yang tidak sampai bayar. Cek apakah ada gangguan teknis atau link yang tidak berfungsi.
+    </p>
+  </div>
+  {% endif %}
+
+  {% if stuck %}
+  <div class="card alert-card" style="border-left:4px solid #F59E0B;">
+    <div class="alert-title" style="color:#92400E;">⏳ Transaksi tertahan lebih dari 3 hari</div>
+    <table style="margin-top:10px;width:100%;">
+      <thead><tr><th>Donor</th><th>Campaign</th><th class="num">Nominal</th><th class="num">Tunggu</th></tr></thead>
+      <tbody>
+      {% for s in stuck %}
+      <tr>
+        <td style="font-size:12px;">{{ s.donor_name }}</td>
+        <td style="font-size:11px;color:var(--ink-soft);">{{ s.campaign }}</td>
+        <td class="num" style="font-size:12px;">{{ s.amount | int | rp }}</td>
+        <td class="num"><span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-size:11px;">{{ s.days_waiting }} hari</span></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;">
+      <a href="/ads" class="no-print">Lihat semua transaksi online →</a>
+    </p>
+  </div>
+  {% endif %}
+
+  {% if cs_alert %}
+  <div class="card alert-card" style="border-left:4px solid #F59E0B;">
+    <div class="alert-title" style="color:#92400E;">📊 CS dengan performa menurun bulan ini</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      {% for cs in cs_alert %}
+      <span style="background:#FEF3C7;color:#92400E;padding:4px 12px;border-radius:20px;font-size:12px;">
+        {{ cs.cs }} · hanya {{ cs.pct }}% dari rata-rata
+      </span>
+      {% endfor %}
+    </div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;">
+      Dibandingkan rata-rata 3 bulan sebelumnya, CS di atas menunjukkan penurunan > 50%.
+      <a href="/crm" class="no-print">Lihat ranking CS →</a>
+    </p>
+  </div>
+  {% endif %}
+
+  {% if new_big %}
+  <div class="card alert-card" style="border-left:4px solid #3B82F6;">
+    <div class="alert-title" style="color:#1D4ED8;">🆕 Donatur baru dengan nominal besar (7 hari terakhir)</div>
+    <table style="margin-top:10px;width:100%;">
+      <thead><tr><th>Nama</th><th>Program</th><th class="num">Nominal</th><th>Tanggal</th></tr></thead>
+      <tbody>
+      {% for d in new_big %}
+      <tr>
+        <td style="font-size:12px;font-weight:500;">{{ d.donor_name or 'Hamba Allah' }}</td>
+        <td style="font-size:11px;color:var(--ink-soft);">{{ d.kode_program or '—' }}</td>
+        <td class="num" style="font-size:12px;">{{ d.nominal | int | rp }}</td>
+        <td style="font-size:11px;color:var(--ink-soft);">{{ d.tanggal }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;">
+      Donatur ini baru pertama kali donasi. Pertimbangkan untuk follow-up personal.
+      <a href="/donor" class="no-print">Lihat Analisis Donatur →</a>
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
+<!-- ══ TOP PROGRAM ════════════════════════════════════════════════════════════ -->
+<div style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;">
+  🏆 Program Terpopuler Bulan Ini
+</div>
+<div class="card" style="margin-bottom:16px;">
+  {% if programs %}
+  {% set max_total = programs[0].total %}
+  {% for p in programs %}
+  <div class="bar-item" style="margin-bottom:8px;">
+    <span class="bar-name" style="font-weight:{% if loop.index == 1 %}700{% else %}500{% endif %};">
+      {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}.{% endif %}
+      {{ p.program }}
+    </span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width:{{ ((p.total / max_total) * 100) | int }}%;background:{% if loop.index == 1 %}#2F6B4F{% elif loop.index == 2 %}#4A90A4{% else %}#8B9DC3{% endif %};"></div>
+    </div>
+    <span class="bar-val">{{ p.total | int | rp }} · {{ p.jumlah }} txn</span>
+  </div>
+  {% endfor %}
+  <p style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;text-align:right;">
+    <a href="/crm" class="no-print">Lihat semua program →</a>
+  </p>
+  {% else %}
+  <p style="color:var(--ink-soft);font-size:12px;">Belum ada data program bulan ini.</p>
+  {% endif %}
+</div>
+
+<!-- ══ PRINT FOOTER ═══════════════════════════════════════════════════════════ -->
+<div class="print-only" style="margin-top:32px;border-top:1px solid #ccc;padding-top:12px;text-align:center;font-size:11px;color:#999;">
+  Dicetak dari fundraising.goldenfutureindonesia.org · Golden Future Indonesia
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* ── Print styles ────────────────────────────────────────────────────────────── */
+.print-only { display: none; }
+@media print {
+  .no-print       { display: none !important; }
+  .print-only     { display: block !important; }
+  nav, aside, .sidebar, [class*="sidebar"] { display: none !important; }
+  body            { background: white !important; }
+  .card           { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; }
+  .page-header    { display: none !important; }
+  .alert-card     { break-inside: avoid; }
+}
+
+/* ── Alert card base ─────────────────────────────────────────────────────────── */
+.alert-card { padding: 14px 18px; }
+.alert-title { font-size: 13px; font-weight: 700; }
+</style>
+{% endblock %}
