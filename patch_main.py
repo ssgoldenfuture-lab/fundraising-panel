@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Patch main.py: tambah open_session setelah bot reply berhasil."""
-import re
+"""Patch main.py: tambah open_session setelah bot reply berhasil.
 
-path = '/var/www/fundraising/main.py'
+Usage: python patch_main.py [path/ke/main.py]
+Kalau path tidak diisi, pakai ./main.py di direktori saat ini.
+"""
+import re
+import sys
+
+path = sys.argv[1] if len(sys.argv) > 1 else 'main.py'
 with open(path) as f:
     content = f.read()
 
