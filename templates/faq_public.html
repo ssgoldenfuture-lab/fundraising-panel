@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ — Fundraising GFI</title>
+<style>
+:root{--bg:#F7F6F2;--card:#fff;--ink:#1B2B22;--ink-soft:#5A6B60;--accent:#2F6B4F;--accent-soft:#E4EFE8;--bad:#B04A3F;--line:#E3E1D8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh;padding:40px 20px;}
+.wrap{max-width:640px;margin:0 auto;}
+.header{text-align:center;margin-bottom:32px;}
+.logo{font-size:22px;font-weight:700;color:var(--accent);margin-bottom:6px;}
+.sub{font-size:13px;color:var(--ink-soft);}
+.section{margin-bottom:36px;}
+.section-title{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--accent);}
+.group{margin-bottom:28px;}
+.group-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--line);}
+.entry{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:12px;}
+.question{font-size:14px;font-weight:600;margin-bottom:8px;}
+.answer{font-size:13px;color:var(--ink-soft);line-height:1.6;white-space:pre-wrap;}
+.field-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);font-weight:600;margin-top:10px;margin-bottom:2px;}
+.field-label:first-of-type{margin-top:0;}
+.field-value{font-size:13px;color:var(--ink);line-height:1.6;white-space:pre-wrap;}
+.empty{text-align:center;color:var(--ink-soft);font-size:13px;padding:40px 0;}
+.cta{text-align:center;margin-top:32px;padding-top:24px;border-top:1px solid var(--line);}
+.cta p{font-size:13px;color:var(--ink-soft);margin-bottom:10px;}
+.btn{display:inline-block;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:600;text-decoration:none;transition:opacity .15s;}
+.btn:hover{opacity:.88;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="logo">FAQ — Kotak Tanya</div>
+    <div class="sub">Golden Future Indonesia · Pertanyaan yang Sering Diajukan</div>
+  </div>
+
+  {% if not groups and not diagendakan and not luar_lingkup %}
+  <div class="empty">Belum ada pertanyaan yang dijawab.</div>
+  {% endif %}
+
+  {% if groups %}
+  <div class="section">
+    {% for cat, entries in groups.items() %}
+    <div class="group">
+      <div class="group-title">{{ cat }}</div>
+      {% for e in entries %}
+      <div class="entry">
+        <div class="question">{{ e.question_public }}</div>
+        <div class="answer">{{ e.answer }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if diagendakan %}
+  <div class="section">
+    <div class="section-title">Topik yang Diagendakan</div>
+    {% for e in diagendakan %}
+    <div class="entry">
+      <div class="field-label">Topik</div>
+      <div class="field-value">{{ e.question_public }}</div>
+      <div class="field-label">Rencana Pembahasan</div>
+      <div class="field-value">{{ e.rencana_pembahasan }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if luar_lingkup %}
+  <div class="section">
+    <div class="section-title">Pertanyaan di Luar Lingkup Fundraising</div>
+    {% for e in luar_lingkup %}
+    <div class="entry">
+      <div class="field-label">Topik</div>
+      <div class="field-value">{{ e.question_public }}</div>
+      <div class="field-label">Ranah Divisi</div>
+      <div class="field-value">{{ e.ranah_divisi }}</div>
+      <div class="field-label">Jalur yang Disarankan</div>
+      <div class="field-value">{{ e.jalur_disarankan }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="cta">
+    <p>Belum ketemu jawaban? Ajukan pertanyaan di sini.</p>
+    <a href="/kotak-tanya" class="btn">Ajukan Pertanyaan</a>
+  </div>
+</div>
+</body>
+</html>

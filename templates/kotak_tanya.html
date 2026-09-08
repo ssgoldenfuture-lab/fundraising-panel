@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kotak Tanya — Fundraising GFI</title>
+<style>
+:root{--bg:#F7F6F2;--card:#fff;--ink:#1B2B22;--ink-soft:#5A6B60;--accent:#2F6B4F;--accent-soft:#E4EFE8;--bad:#B04A3F;--line:#E3E1D8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.06);}
+.logo{font-size:20px;font-weight:700;color:var(--accent);margin-bottom:6px;}
+.sub{font-size:13px;color:var(--ink-soft);margin-bottom:28px;}
+label{display:block;font-size:12px;color:var(--ink-soft);font-weight:500;margin-bottom:5px;}
+textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;outline:none;background:#fff;font-family:inherit;resize:vertical;transition:border-color .15s;}
+textarea:focus{border-color:var(--accent);}
+.field{margin-bottom:16px;}
+.btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;transition:opacity .15s;}
+.btn:hover{opacity:.88;}
+.success{background:var(--accent-soft);border:1px solid #86efac;border-radius:8px;padding:14px 16px;font-size:13px;color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">Kotak Tanya</div>
+  <div class="sub">Golden Future Indonesia · Ajukan pertanyaanmu</div>
+  {% if sent == "1" %}
+  <div class="success">Terima kasih, pertanyaanmu sudah masuk.</div>
+  {% else %}
+  <form method="post" action="/kotak-tanya">
+    <div class="field">
+      <label for="question_raw">Pertanyaan</label>
+      <textarea id="question_raw" name="question_raw" rows="5" required placeholder="Tulis pertanyaanmu di sini..."></textarea>
+    </div>
+    <button type="submit" class="btn">Kirim</button>
+  </form>
+  {% endif %}
+</div>
+</body>
+</html>

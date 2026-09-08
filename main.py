@@ -206,6 +206,12 @@ def require_user(request: Request) -> dict:
         raise HTTPException(status_code=302, headers={"Location": "/login"})
     return user
 
+def is_faq_reviewer(username: str) -> bool:
+    reviewers = [u.strip() for u in os.getenv("FAQ_REVIEWERS", "admin").split(",")]
+    return username in reviewers
+
+templates.env.globals["is_faq_reviewer"] = is_faq_reviewer
+
 # â”€â”€ Date helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def default_range() -> tuple[str, str]:
@@ -242,6 +248,58 @@ async def logout():
     resp = RedirectResponse("/login", status_code=303)
     resp.delete_cookie(COOKIE_NAME)
     return resp
+
+@app.get("/kotak-tanya", response_class=HTMLResponse)
+async def kotak_tanya_page(request: Request, sent: str = ""):
+    return templates.TemplateResponse("kotak_tanya.html", {"request": request, "sent": sent})
+
+@app.post("/kotak-tanya")
+async def kotak_tanya_post(request: Request, question_raw: str = Form(...)):
+    async with aiosqlite.connect(agg.DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO faq_submissions (question_raw, status) VALUES (?, ?)",
+            (question_raw.strip(), "pending")
+        )
+        await db.commit()
+    return RedirectResponse("/kotak-tanya?sent=1", status_code=303)
+
+@app.get("/faq", response_class=HTMLResponse)
+async def faq_public_page(request: Request):
+    async with aiosqlite.connect(agg.DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT category, question_public, answer FROM faq_entries "
+            "WHERE status = 'terjawab' ORDER BY category, updated_at"
+        ) as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+
+        async with db.execute(
+            "SELECT question_public, rencana_pembahasan FROM faq_entries "
+            "WHERE status = 'diagendakan' ORDER BY updated_at"
+        ) as cur:
+            diagendakan = [dict(r) for r in await cur.fetchall()]
+
+        async with db.execute(
+            "SELECT question_public, ranah_divisi, jalur_disarankan FROM faq_entries "
+            "WHERE status = 'luar_lingkup' ORDER BY updated_at"
+        ) as cur:
+            luar_lingkup = [dict(r) for r in await cur.fetchall()]
+
+    groups: dict[str, list] = {}
+    umum = []
+    for r in rows:
+        cat = (r["category"] or "").strip()
+        if cat:
+            groups.setdefault(cat, []).append(r)
+        else:
+            umum.append(r)
+    if umum:
+        groups["Umum"] = umum
+
+    return templates.TemplateResponse("faq_public.html", {
+        "request": request, "groups": groups,
+        "diagendakan": diagendakan, "luar_lingkup": luar_lingkup,
+    })
 
 # â”€â”€ Routes: Main pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -378,6 +436,132 @@ async def ads_page(request: Request):
         "txn_ok": txn_ok, "txn_kpi": txn_kpi, "txn_tren": txn_tren,
         "txn_camps": txn_camps, "txn_conv": txn_conv, "txn_list": txn_list,
     })
+
+@app.get("/admin/faq", response_class=HTMLResponse)
+async def faq_review_page(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    if not is_faq_reviewer(user["u"]):
+        return RedirectResponse("/home")
+
+    async with aiosqlite.connect(agg.DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT id, question_raw, submitted_at FROM faq_submissions "
+            "WHERE status = 'pending' ORDER BY id"
+        ) as cur:
+            submissions = [dict(r) for r in await cur.fetchall()]
+
+    return templates.TemplateResponse("faq_review.html", {
+        "request": request, "user": user, "submissions": submissions,
+    })
+
+@app.get("/admin/faq/{submission_id}", response_class=HTMLResponse)
+async def faq_review_detail_page(request: Request, submission_id: int):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    if not is_faq_reviewer(user["u"]):
+        return RedirectResponse("/home")
+
+    async with aiosqlite.connect(agg.DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT id, question_raw, status, submitted_at FROM faq_submissions WHERE id = ?",
+            (submission_id,)
+        ) as cur:
+            row = await cur.fetchone()
+
+    if not row or row["status"] == "processed":
+        return RedirectResponse("/admin/faq")
+
+    return templates.TemplateResponse("faq_review_detail.html", {
+        "request": request, "user": user, "submission": dict(row), "form": None,
+    })
+
+@app.post("/admin/faq/{submission_id}")
+async def faq_review_detail_post(
+    request: Request,
+    submission_id: int,
+    status: str = Form(...),
+    question_public: str = Form(...),
+    category: str = Form(""),
+    answer: str = Form(""),
+    rencana_pembahasan: str = Form(""),
+    ranah_divisi: str = Form(""),
+    jalur_disarankan: str = Form(""),
+):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    if not is_faq_reviewer(user["u"]):
+        return RedirectResponse("/home")
+
+    form_values = {
+        "status": status, "question_public": question_public,
+        "category": category, "answer": answer,
+        "rencana_pembahasan": rencana_pembahasan,
+        "ranah_divisi": ranah_divisi, "jalur_disarankan": jalur_disarankan,
+    }
+
+    error = None
+    if status == "terjawab" and not answer.strip():
+        error = "Jawaban wajib diisi untuk status Terjawab."
+    elif status == "diagendakan" and not rencana_pembahasan.strip():
+        error = "Rencana Pembahasan wajib diisi untuk status Diagendakan."
+    elif status == "luar_lingkup" and (not ranah_divisi.strip() or not jalur_disarankan.strip()):
+        error = "Ranah/Divisi dan Jalur Disarankan wajib diisi untuk status Luar Lingkup."
+
+    if error:
+        async with aiosqlite.connect(agg.DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT id, question_raw, status, submitted_at FROM faq_submissions WHERE id = ?",
+                (submission_id,)
+            ) as cur:
+                row = await cur.fetchone()
+        if not row:
+            return RedirectResponse("/admin/faq")
+        return templates.TemplateResponse("faq_review_detail.html", {
+            "request": request, "user": user, "submission": dict(row),
+            "error": error, "form": form_values,
+        })
+
+    reviewer = await get_user(user["u"])
+    reviewer_id = reviewer["id"] if reviewer else None
+
+    # Cuma simpan field yang relevan dengan status yang dipilih — sisanya NULL
+    if status == "terjawab":
+        category_v, answer_v = category.strip() or None, answer.strip() or None
+        rencana_v = ranah_v = jalur_v = None
+    elif status == "diagendakan":
+        rencana_v = rencana_pembahasan.strip() or None
+        category_v = answer_v = ranah_v = jalur_v = None
+    elif status == "luar_lingkup":
+        ranah_v = ranah_divisi.strip() or None
+        jalur_v = jalur_disarankan.strip() or None
+        category_v = answer_v = rencana_v = None
+    else:
+        raise HTTPException(status_code=400, detail="Status tidak valid")
+
+    async with aiosqlite.connect(agg.DB_PATH) as db:
+        await db.execute("""
+            INSERT INTO faq_entries
+                (status, category, question_public, answer, rencana_pembahasan,
+                 ranah_divisi, jalur_disarankan, source_submission_id, updated_by)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        """, (
+            status, category_v, question_public.strip(), answer_v, rencana_v,
+            ranah_v, jalur_v, submission_id, reviewer_id
+        ))
+        await db.execute(
+            "UPDATE faq_submissions SET status = 'processed' WHERE id = ?",
+            (submission_id,)
+        )
+        await db.commit()
+
+    return RedirectResponse("/admin/faq", status_code=303)
 
 # ── API: web analytics tracker ────────────────────────────────────────────────────────────────
 
