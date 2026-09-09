@@ -250,11 +250,13 @@ async def logout():
     return resp
 
 @app.get("/kotak-tanya", response_class=HTMLResponse)
-async def kotak_tanya_page(request: Request, sent: str = ""):
-    return templates.TemplateResponse("kotak_tanya.html", {"request": request, "sent": sent})
+async def kotak_tanya_page(request: Request, sent: str = "", error: str = ""):
+    return templates.TemplateResponse("kotak_tanya.html", {"request": request, "sent": sent, "error": error})
 
 @app.post("/kotak-tanya")
 async def kotak_tanya_post(request: Request, question_raw: str = Form(...)):
+    if not question_raw.strip():
+        return RedirectResponse("/kotak-tanya?error=1", status_code=303)
     async with aiosqlite.connect(agg.DB_PATH) as db:
         await db.execute(
             "INSERT INTO faq_submissions (question_raw, status) VALUES (?, ?)",
@@ -869,7 +871,7 @@ async def api_wa_config_save(request: Request):
 
 # Jalankan sekali: python -c "import asyncio; from main import seed_user; asyncio.run(seed_user())"
 
-async def seed_user(username="admin", password="gantidulu123", role="admin"):
+async def seed_user(username="admin", password="GANTI_INI_SEBELUM_PAKAI", role="admin"):
     await init_db()
     try:
         await create_user(username, password, role)

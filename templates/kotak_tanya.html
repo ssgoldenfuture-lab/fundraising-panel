@@ -18,6 +18,7 @@ textarea:focus{border-color:var(--accent);}
 .btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;transition:opacity .15s;}
 .btn:hover{opacity:.88;}
 .success{background:var(--accent-soft);border:1px solid #86efac;border-radius:8px;padding:14px 16px;font-size:13px;color:var(--accent);}
+.err{background:#fff0ef;border:1px solid #e8b4b0;border-radius:8px;padding:10px 12px;font-size:13px;color:var(--bad);margin-bottom:16px;}
 </style>
 </head>
 <body>
@@ -27,6 +28,7 @@ textarea:focus{border-color:var(--accent);}
   {% if sent == "1" %}
   <div class="success">Terima kasih, pertanyaanmu sudah masuk.</div>
   {% else %}
+  {% if error == "1" %}<div class="err">Pertanyaan tidak boleh kosong.</div>{% endif %}
   <form method="post" action="/kotak-tanya">
     <div class="field">
       <label for="question_raw">Pertanyaan</label>
