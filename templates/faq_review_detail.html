@@ -15,6 +15,7 @@
 .form-group input,.form-group select,.form-group textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;min-width:160px;}
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--accent);}
 .form-group textarea{width:100%;resize:vertical;}
+.form-group select{width:100%;}
 .status-section{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px;background:var(--bg);}
 .status-section h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:10px;}
 .radio-row{display:flex;gap:16px;flex-wrap:wrap;}
@@ -54,7 +55,12 @@
     <div class="form-row">
       <div class="form-group" style="flex:1;min-width:200px;">
         <label>Kategori</label>
-        <input type="text" name="category" placeholder="mis. A. Terkait Website &amp; Platform Donasi" value="{{ form.category or '' }}">
+        <select name="category">
+          <option value="">-- Pilih kategori --</option>
+          {% for cat in categories %}
+          <option value="{{ cat }}" {% if form.category == cat %}selected{% endif %}>{{ cat }}</option>
+          {% endfor %}
+        </select>
       </div>
     </div>
     <div class="form-group">
