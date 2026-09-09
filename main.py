@@ -212,6 +212,14 @@ def is_faq_reviewer(username: str) -> bool:
 
 templates.env.globals["is_faq_reviewer"] = is_faq_reviewer
 
+# Kategori tetap untuk FAQ — sesuai dokumen "FAQ Fundraising — Golden Future Indonesia"
+FAQ_CATEGORIES = [
+    "A. Terkait Website & Platform Donasi",
+    "B. Cara Handle Donatur",
+    "C. Alur Kerja & Koordinasi",
+    "D. Struktur & Pembagian Peran",
+]
+
 # â”€â”€ Date helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def default_range() -> tuple[str, str]:
@@ -287,20 +295,25 @@ async def faq_public_page(request: Request):
         ) as cur:
             luar_lingkup = [dict(r) for r in await cur.fetchall()]
 
-    groups: dict[str, list] = {}
-    umum = []
+        async with db.execute("SELECT MAX(updated_at) AS last_updated FROM faq_entries") as cur:
+            last_updated_row = await cur.fetchone()
+            last_updated = last_updated_row["last_updated"] if last_updated_row else None
+
+    groups: dict[str, list] = {cat: [] for cat in FAQ_CATEGORIES}
+    lainnya = []
     for r in rows:
-        cat = (r["category"] or "").strip()
-        if cat:
-            groups.setdefault(cat, []).append(r)
+        cat = r["category"] or ""
+        if cat in groups:
+            groups[cat].append(r)
         else:
-            umum.append(r)
-    if umum:
-        groups["Umum"] = umum
+            lainnya.append(r)
+    if lainnya:
+        groups["Lainnya"] = lainnya
 
     return templates.TemplateResponse("faq_public.html", {
-        "request": request, "groups": groups,
+        "request": request, "groups": groups, "categories": FAQ_CATEGORIES,
         "diagendakan": diagendakan, "luar_lingkup": luar_lingkup,
+        "last_updated": last_updated,
     })
 
 # â”€â”€ Routes: Main pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -480,6 +493,7 @@ async def faq_review_detail_page(request: Request, submission_id: int):
 
     return templates.TemplateResponse("faq_review_detail.html", {
         "request": request, "user": user, "submission": dict(row), "form": None,
+        "categories": FAQ_CATEGORIES,
     })
 
 @app.post("/admin/faq/{submission_id}")
@@ -508,7 +522,9 @@ async def faq_review_detail_post(
     }
 
     error = None
-    if status == "terjawab" and not answer.strip():
+    if status == "terjawab" and not category.strip():
+        error = "Kategori wajib dipilih untuk status Terjawab."
+    elif status == "terjawab" and not answer.strip():
         error = "Jawaban wajib diisi untuk status Terjawab."
     elif status == "diagendakan" and not rencana_pembahasan.strip():
         error = "Rencana Pembahasan wajib diisi untuk status Diagendakan."
@@ -527,7 +543,7 @@ async def faq_review_detail_post(
             return RedirectResponse("/admin/faq")
         return templates.TemplateResponse("faq_review_detail.html", {
             "request": request, "user": user, "submission": dict(row),
-            "error": error, "form": form_values,
+            "error": error, "form": form_values, "categories": FAQ_CATEGORIES,
         })
 
     reviewer = await get_user(user["u"])
