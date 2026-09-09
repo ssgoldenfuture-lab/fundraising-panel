@@ -18,9 +18,8 @@ from datetime import date
 
 log = logging.getLogger("wa_webhook")
 
-# Bot LID/phone — diisi otomatis dari env, atau dari pertama kali dapat mention
-# Contoh: REPLAI_BOT_LID=21634488488118
-_BOT_LID: str = os.getenv("REPLAI_BOT_LID", "21634488488118")  # dari log: @21634488488118
+# Bot LID/phone — diisi dari env. Contoh: REPLAI_BOT_LID=21634488488118
+_BOT_LID: str = os.getenv("REPLAI_BOT_LID", "")
 
 # Kata kunci TAMBAHAN untuk trigger di grup (selain tag langsung)
 GROUP_TRIGGERS = ["!laporan", "!cs", "!donasi", "!status", "!bot"]

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% set active = "faq_review" %}
+{% block title %}Review FAQ — Fundraising GFI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Review Pertanyaan</h1>
+  <p>Kotak Tanya · pertanyaan publik yang menunggu ditinjau</p>
+</div>
+
+<div class="card">
+  <h3>Pending ({{ submissions | length }})</h3>
+  {% if submissions %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Pertanyaan</th>
+        <th>Waktu Kirim</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in submissions %}
+      <tr>
+        <td>{{ s.id }}</td>
+        <td>{{ s.question_raw }}</td>
+        <td>{{ s.submitted_at }}</td>
+        <td><a href="/admin/faq/{{ s.id }}" class="btn">Review →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--ink-soft);font-size:12px;">Tidak ada pertanyaan pending saat ini.</p>
+  {% endif %}
+</div>
+{% endblock %}

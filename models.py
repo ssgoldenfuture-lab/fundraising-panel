@@ -41,6 +41,27 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS faq_submissions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    question_raw  TEXT    NOT NULL,
+    status        TEXT    NOT NULL DEFAULT 'pending',
+    submitted_at  TEXT    DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS faq_entries (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    status                TEXT    NOT NULL,
+    category              TEXT,
+    question_public       TEXT    NOT NULL,
+    answer                TEXT,
+    rencana_pembahasan    TEXT,
+    ranah_divisi          TEXT,
+    jalur_disarankan      TEXT,
+    source_submission_id  INTEGER REFERENCES faq_submissions(id),
+    updated_by            INTEGER REFERENCES users(id),
+    updated_at            TEXT    DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS sync_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     synced_at   TEXT DEFAULT (datetime('now')),

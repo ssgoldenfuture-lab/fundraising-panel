@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% set active = "faq_review" %}
+{% block title %}Review Pertanyaan #{{ submission.id }} — Fundraising GFI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Review Pertanyaan #{{ submission.id }}</h1>
+  <p>Kotak Tanya · diajukan {{ submission.submitted_at }}</p>
+</div>
+
+<style>
+.form-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px;}
+.form-group{display:flex;flex-direction:column;gap:4px;margin-bottom:16px;}
+.form-group label{font-size:11px;color:var(--ink-soft);font-weight:500;text-transform:uppercase;}
+.form-group input,.form-group select,.form-group textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;min-width:160px;}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--accent);}
+.form-group textarea{width:100%;resize:vertical;}
+.status-section{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px;background:var(--bg);}
+.status-section h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:10px;}
+.radio-row{display:flex;gap:16px;flex-wrap:wrap;}
+.radio-row label{font-size:13px;font-weight:400;text-transform:none;display:flex;align-items:center;gap:6px;color:var(--ink);}
+.error-box{background:#fff0ef;border:1px solid #e8b4b0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--bad);}
+</style>
+
+<div class="card">
+  <h3>Pertanyaan Asli (apa adanya)</h3>
+  <p style="font-size:13px;white-space:pre-wrap;">{{ submission.question_raw }}</p>
+</div>
+
+{% if error %}
+<div class="error-box">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/admin/faq/{{ submission.id }}" class="card">
+  <h3>Tindak Lanjut</h3>
+
+  <div class="form-group">
+    <label>Status</label>
+    <div class="radio-row">
+      <label><input type="radio" name="status" value="terjawab" required {% if form.status == 'terjawab' %}checked{% endif %}> Terjawab</label>
+      <label><input type="radio" name="status" value="diagendakan" {% if form.status == 'diagendakan' %}checked{% endif %}> Diagendakan</label>
+      <label><input type="radio" name="status" value="luar_lingkup" {% if form.status == 'luar_lingkup' %}checked{% endif %}> Luar Lingkup</label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Pertanyaan Publik (tulis ulang, umum/dianonimkan)</label>
+    <textarea name="question_public" rows="3" required
+      placeholder="Tulis ulang pertanyaan di atas dalam bentuk umum — jangan copy-paste langsung dari pertanyaan asli.">{{ form.question_public or '' }}</textarea>
+  </div>
+
+  <div class="status-section">
+    <h4>Field untuk status: Terjawab</h4>
+    <div class="form-row">
+      <div class="form-group" style="flex:1;min-width:200px;">
+        <label>Kategori</label>
+        <input type="text" name="category" placeholder="mis. A. Terkait Website &amp; Platform Donasi" value="{{ form.category or '' }}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Jawaban</label>
+      <textarea name="answer" rows="3" placeholder="Isi jawaban untuk ditampilkan ke publik...">{{ form.answer or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="status-section">
+    <h4>Field untuk status: Diagendakan</h4>
+    <div class="form-group">
+      <label>Rencana Pembahasan</label>
+      <textarea name="rencana_pembahasan" rows="2" placeholder="mis. Akan dibahas di rapat mingguan tanggal...">{{ form.rencana_pembahasan or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="status-section">
+    <h4>Field untuk status: Luar Lingkup</h4>
+    <div class="form-row">
+      <div class="form-group" style="flex:1;min-width:200px;">
+        <label>Ranah / Divisi</label>
+        <input type="text" name="ranah_divisi" placeholder="mis. HRD, Keuangan" value="{{ form.ranah_divisi or '' }}">
+      </div>
+      <div class="form-group" style="flex:1;min-width:200px;">
+        <label>Jalur Disarankan</label>
+        <input type="text" name="jalur_disarankan" placeholder="mis. Hubungi langsung via email ke..." value="{{ form.jalur_disarankan or '' }}">
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-top:8px;">
+    <button type="submit" class="btn btn-primary">Simpan &amp; Tandai Selesai</button>
+    <a href="/admin/faq" class="btn">Batal</a>
+  </div>
+</form>
+{% endblock %}
