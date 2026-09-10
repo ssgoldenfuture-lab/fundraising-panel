@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Database — Fundraising GFI{% endblock %}
+{% block content %}
+<style>
+.cs-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 20px;}
+.cs-icon{width:80px;height:80px;background:linear-gradient(135deg,#E4EFE8,#2F6B4F22);border-radius:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;}
+.cs-title{font-size:24px;font-weight:700;color:var(--ink);margin-bottom:8px;}
+.cs-sub{font-size:14px;color:var(--ink-soft);max-width:440px;line-height:1.7;margin-bottom:32px;}
+.cs-badge{display:inline-flex;align-items:center;gap:6px;background:#FEF3C7;color:#92400E;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:600;margin-bottom:32px;}
+.cs-features{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;max-width:640px;width:100%;margin-top:8px;}
+.cs-feat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;text-align:left;}
+.cs-feat-icon{font-size:22px;margin-bottom:8px;}
+.cs-feat h4{font-size:13px;font-weight:600;margin-bottom:4px;}
+.cs-feat p{font-size:12px;color:var(--ink-soft);line-height:1.5;}
+</style>
+
+<div class="cs-wrap">
+  <div class="cs-badge">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Coming Soon
+  </div>
+
+  <div class="cs-icon">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2F6B4F" stroke-width="1.5">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/>
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+    </svg>
+  </div>
+
+  <div class="cs-title">Database Terpadu</div>
+  <div class="cs-sub">
+    Semua data donatur, campaign, dan transaksi tersinkronisasi langsung dari <strong>Google Spreadsheet</strong> ke dashboard ini. Tidak perlu input manual lagi.
+  </div>
+
+  <div class="cs-features">
+    <div class="cs-feat">
+      <div class="cs-feat-icon">📊</div>
+      <h4>Sync Google Sheets</h4>
+      <p>Data dari spreadsheet GFI otomatis masuk ke dashboard secara real-time.</p>
+    </div>
+    <div class="cs-feat">
+      <div class="cs-feat-icon">🔍</div>
+      <h4>Pencarian & Filter</h4>
+      <p>Cari donatur, program, atau transaksi dengan filter canggih.</p>
+    </div>
+    <div class="cs-feat">
+      <div class="cs-feat-icon">📤</div>
+      <h4>Export Data</h4>
+      <p>Export ke CSV / Excel untuk keperluan laporan internal.</p>
+    </div>
+    <div class="cs-feat">
+      <div class="cs-feat-icon">🔗</div>
+      <h4>Multi-sumber</h4>
+      <p>Gabungkan data dari Spreadsheet, database web donasi, dan input manual.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

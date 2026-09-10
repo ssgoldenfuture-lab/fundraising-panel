@@ -14,6 +14,12 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+# load_dotenv() HARUS dipanggil sebelum import modul custom
+# supaya os.getenv() di wa_bot.py, wa_webhook.py dll terbaca dari .env
+load_dotenv()
+
+import calendar_gfi
+
 from models import init_db, get_user, check_password, create_user
 from sheets import sync_from_sheets
 import aggregates as agg
@@ -22,8 +28,6 @@ import berdonasi_db as bdb
 import home_aggregates as hagg
 import wa_bot
 import wa_webhook
-
-load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s â€” %(message)s")
 log = logging.getLogger("main")
@@ -46,8 +50,16 @@ async def _startup_sync():
 
 
 async def _ensure_wa_log_table():
-    """Buat tabel wa_broadcast_log kalau belum ada."""
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    """Buat tabel wa_broadcast_log kalau belum ada.
+    
+    Sekaligus enable WAL mode supaya concurrent reads tidak
+    memblokir writer (fixes 'database is locked' saat sync berjalan).
+    WAL mode persisten — cukup diset sekali, tidak perlu diulang.
+    """
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
+        # WAL mode: concurrent readers + single writer, tidak saling block
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("PRAGMA synchronous=NORMAL")  # aman + lebih cepat di WAL
         await db.execute("""
             CREATE TABLE IF NOT EXISTS wa_broadcast_log (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,13 +76,20 @@ async def _ensure_wa_log_table():
 
 async def _log_wa_broadcast(target: str, message: str, status: str,
                               error: str = "", trigger: str = "scheduled"):
-    """Catat hasil broadcast WA ke DB."""
-    async with aiosqlite.connect(agg.DB_PATH) as db:
-        await db.execute("""
-            INSERT INTO wa_broadcast_log (sent_at, target, message, status, error, trigger)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (datetime.now().isoformat(), target, message[:500], status, error, trigger))
-        await db.commit()
+    """Catat hasil broadcast WA ke DB.
+    
+    timeout=30: tunggu hingga 30 detik kalau DB sedang ditulis oleh
+    sync_from_sheets() — jangan langsung crash.
+    """
+    try:
+        async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
+            await db.execute("""
+                INSERT INTO wa_broadcast_log (sent_at, target, message, status, error, trigger)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (datetime.now().isoformat(), target, message[:500], status, error, trigger))
+            await db.commit()
+    except Exception as e:
+        log.warning(f"_log_wa_broadcast gagal (non-fatal): {e}")
 
 
 async def _send_wa_report():
@@ -580,6 +599,55 @@ async def faq_review_detail_post(
         await db.commit()
 
     return RedirectResponse("/admin/faq", status_code=303)
+
+@app.get("/database", response_class=HTMLResponse)
+async def database_page(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    return templates.TemplateResponse("database.html", {
+        "request": request, "user": user, "active": "database",
+    })
+
+@app.get("/kalender", response_class=HTMLResponse)
+async def kalender_page(request: Request, window: str = "auto", custom_days: int = 7):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    try:
+        # window="auto" → konten ke konten, window="N" → N hari manual
+        manual_window = None
+        if window != "auto":
+            try:
+                manual_window = int(window)
+            except ValueError:
+                manual_window = custom_days
+        events = await calendar_gfi.get_calendar_with_stats(months=3, manual_window=manual_window)
+    except Exception as e:
+        logging.error(f"Kalender error: {e}", exc_info=True)
+        events = []
+
+    # Serialize ke JSON string dulu pakai custom encoder (handle SEMUA nested date)
+    import json
+    from datetime import date as _date, datetime as _datetime
+
+    class _DateEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, (_date, _datetime)):
+                return obj.isoformat()
+            return super().default(obj)
+
+    events_json = json.dumps(events, cls=_DateEncoder)
+
+    return templates.TemplateResponse("kalender.html", {
+        "request": request, "user": user, "active": "kalender",
+        "events_json": events_json,          # string JSON, dipakai di template dengan | safe
+        "events": events,                    # masih dipakai untuk Jinja stats (non-tojson)
+        "window": window, "custom_days": custom_days,
+        "today_iso": date.today().isoformat(),
+    })
+
+
 
 # ── API: web analytics tracker ────────────────────────────────────────────────────────────────
 

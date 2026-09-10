@@ -18,8 +18,16 @@ from datetime import date
 
 log = logging.getLogger("wa_webhook")
 
+<<<<<<< Updated upstream
 # Bot LID/phone — diisi dari env. Contoh: REPLAI_BOT_LID=21634488488118
 _BOT_LID: str = os.getenv("REPLAI_BOT_LID", "")
+=======
+# Bot LID/phone — diisi dari env
+# REPLAI_BOT_LID: LID format (15 digit, mulai 1) — muncul di @mention grup
+# REPLAI_BOT_PHONE: nomor WA bot (628xxx) — fallback jika LID belum diketahui
+_BOT_LID:   str = os.getenv("REPLAI_BOT_LID", "").strip()
+_BOT_PHONE: str = os.getenv("REPLAI_BOT_PHONE", "").strip()  # misal: 6285187290682
+>>>>>>> Stashed changes
 
 # Kata kunci TAMBAHAN untuk trigger di grup (selain tag langsung)
 GROUP_TRIGGERS = ["!laporan", "!cs", "!donasi", "!status", "!bot"]
@@ -68,13 +76,22 @@ _load_active_groups()
 
 
 def _is_bot_mentioned(message: str) -> bool:
-    """Cek apakah BOT (bukan orang lain) di-tag dalam pesan grup."""
+    """
+    Cek apakah BOT di-tag dalam pesan grup.
+    Cek 3 format:
+    1. LID format: @21634488488118  (dari REPLAI_BOT_LID)
+    2. Phone format: @6285187290682 (dari REPLAI_BOT_PHONE)
+    3. Fallback: ANY @{digits 10+} — kalau grup sudah aktif dan ada mention,
+       kemungkinan besar bot yang di-tag (tidak ada member lain yang namanya angka)
+    """
     if not message:
         return False
-    # Hanya cocok kalau yang di-tag adalah bot (pakai LID bot yang spesifik)
+    # Format 1: LID (paling akurat)
     if _BOT_LID and f"@{_BOT_LID}" in message:
         return True
-    # Jangan pakai fallback @\d{10,} — itu terlalu broad dan match siapapun yang di-tag
+    # Format 2: phone number langsung
+    if _BOT_PHONE and f"@{_BOT_PHONE}" in message:
+        return True
     return False
 
 
@@ -82,14 +99,18 @@ def _is_bot_mentioned(message: str) -> bool:
 # Kita HAPUS kata tanya umum (apa, siapa, gimana, ?) supaya bot tidak nimbrung
 # saat tim ngobrol biasa (misal: "gimana nih kabarnya?", "kumaha am?").
 _DATA_KEYWORDS = [
-    # Keyword utama
+    # Keyword utama fundraising
     "donasi", "program", "ranking", "rangking", "laporan",
     "rekap", "performa", "target", "capaian",
     "transaksi", "revenue", "konversi", "insight",
     "terbesar", "terkecil", "terbanyak", "tertinggi",
     # Keyword follow-up (lanjutan)
-    "perbulan", "pertahun", "rincian", "detail", 
+    "perbulan", "pertahun", "rincian", "detail",
     "data", "grafik", "urutkan", "bandingkan", "dibanding",
+    # Keyword kalender konten & blasting
+    "konten", "blast", "blasting", "jadwal", "kalender",
+    "besok", "minggu", "hari ini", "narasii", "narasi",
+    "efektif", "terbaik", "hasil blast", "performa konten",
 ]
 
 
@@ -113,15 +134,21 @@ def _is_data_question(text: str) -> bool:
 def _should_respond(payload: dict) -> bool:
     """
     Return True kalau bot harus membalas.
-    - DM: selalu respon
-    - Grup di-tag langsung: selalu respon
-    - Grup aktif (pernah di-tag): respon HANYA kalau isinya pertanyaan data,
-      bukan obrolan random — supaya bot tidak nimbrung sembarangan
+    - DM: selalu respon (dengan whitelist opsional)
+    - Grup di-tag langsung (LID/phone match): selalu respon
+    - Grup aktif + ada @mention angka apapun: respon (kemungkinan besar di-tag)
+    - Grup aktif + pesan = pertanyaan data: respon
+    - Grup belum aktif: hanya trigger eksplisit (!laporan dll)
     """
     msg_type = payload.get("type", "single")
     message  = payload.get("message") or ""
     text     = message.lower().strip()
     sender   = payload.get("from", "")
+    sender_name = payload.get("from_name", "") or payload.get("name", "")
+
+    # Abaikan pesan dari bot sendiri (echo webhook)
+    if _BOT_PHONE and sender_name and "fundraising assistant" in sender_name.lower():
+        return False
 
     if msg_type == "single":
         if not DM_WHITELIST:
@@ -130,14 +157,17 @@ def _should_respond(payload: dict) -> bool:
         return any(phone_clean in w for w in DM_WHITELIST)
 
     elif msg_type == "group":
-        # 1. Bot di-tag langsung → selalu respon
+        # 1. Bot di-tag langsung (LID atau phone number match) → selalu respon
         if _is_bot_mentioned(message):
             return True
-        # 2. Grup aktif (permanen) → respon HANYA kalau pertanyaan data
-        #    Kalau obrolan random → bot diam, tidak nimbrung
+        # 2. Grup aktif + ada @mention (angka 8+ digit) → kemungkinan tag bot
+        #    Lebih aman dari fallback global karena hanya untuk grup yang sudah aktif
+        if _has_active_session(sender) and re.search(r'@\d{8,}', message):
+            return True
+        # 3. Grup aktif + pertanyaan data → respon
         if _has_active_session(sender):
             return _is_data_question(text)
-        # 3. Trigger keyword eksplisit (!laporan dll)
+        # 4. Trigger keyword eksplisit (!laporan dll) → aktifkan grup + respon
         return any(trigger in text for trigger in GROUP_TRIGGERS)
 
     return False
@@ -158,6 +188,10 @@ def _detect_intent(text: str) -> str:
     """
     t = _clean_text(text).lower()
 
+    # Command belajar — update knowledge base
+    if t.startswith("!belajar"):
+        return "belajar"
+
     # Perintah eksplisit (kaku)
     if t.startswith("!laporan"):
         return "laporan_harian"
@@ -175,7 +209,8 @@ def _detect_intent(text: str) -> str:
     # Semua pertanyaan lain (bahkan yang ada kata "ranking", "hari ini") -> Gemini AI
     return "unknown"
 
-import wa_ai  # Gemini AI agent
+import wa_ai      # Gemini AI agent
+import knowledge  # Self-learning knowledge base
 
 
 async def handle_webhook(payload: dict, aggregates, wa_bot, home_agg, berdonasi_db) -> str | None:
@@ -197,7 +232,16 @@ async def handle_webhook(payload: dict, aggregates, wa_bot, home_agg, berdonasi_
     log.info(f"WA webhook: intent={intent} clean_text='{text}' from={sender} group={is_grp}")
 
     try:
-        if intent == "help":
+        if intent == "belajar":
+            # Update knowledge base
+            key, val, cat = knowledge.parse_learn_command(text)
+            if key and val:
+                msg = knowledge.learn(key, val, cat)
+                return msg
+            else:
+                return "Format: *!belajar: KODE = Penjelasan*\nContoh: !belajar: KEI = Kemiskinan Indonesia"
+
+        elif intent == "help":
             # Tag tanpa pesan / pesan kosong -> AI perkenalkan diri dengan data
             return await wa_ai.answer(
                 "Kamu baru di-tag. Perkenalkan dirimu secara singkat dan sebutkan "

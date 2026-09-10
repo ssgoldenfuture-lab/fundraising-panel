@@ -83,7 +83,7 @@ async def _sync_one(source: dict, api_key: str) -> dict:
     log.info(f"[Sync] Source #{src_id} '{source['label']}': {len(rows)} rows")
 
     upserted = 0
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         exclusions = await _load_exclusions(db)
 
@@ -134,7 +134,121 @@ async def _sync_one(source: dict, api_key: str) -> dict:
 
     return {"rows_fetched": len(rows), "rows_upserted": upserted, "source": source["label"]}
 
-# ── Main: sync semua sumber aktif ────────────────────────────────────────────
+
+# Tab-tab yang BUKAN CS (harus dilewati saat scan per-tab)
+_SKIP_TAB_PREFIXES = (
+    "form responses", "rekap ", "nama program", "koreksi",
+    "telat konfirm", "donasi riba", "kemitraan", "donasi lain",
+    "ip", "devi", "cs ap", "cantika", "osa", "cs 1", "cs 2",
+    "cs 3", "cs 4", "cs 5", "cs 6", "cs 7", "cs 8", "cs 9",
+)
+
+async def _list_tabs(sid: str, api_key: str) -> list[str]:
+    """Ambil semua tab dari spreadsheet, kembalikan nama tab yang merupakan CS."""
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{sid}?fields=sheets.properties.title&key={api_key}"
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+    all_tabs = [s["properties"]["title"] for s in data.get("sheets", [])]
+    cs_tabs = []
+    for t in all_tabs:
+        tl = t.lower()
+        if not any(tl.startswith(skip) for skip in _SKIP_TAB_PREFIXES):
+            cs_tabs.append(t)
+    return cs_tabs
+
+
+async def _sync_multi_tab(source: dict, api_key: str) -> dict:
+    """
+    Untuk historical sheet dengan format per-tab CS.
+    Scan semua tab, baca data per-tab, inject nama tab sebagai CS.
+    """
+    sid    = source["spreadsheet_id"]
+    src_id = source["id"]
+    year   = source.get("source_year")  # None kalau kolom tidak ada
+
+    cs_tabs = await _list_tabs(sid, api_key)
+    log.info(f"[MultiSync] '{source['label']}': {len(cs_tabs)} CS tabs: {cs_tabs}")
+
+    total_fetched = total_upserted = 0
+
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
+        db.row_factory = aiosqlite.Row
+        exclusions = await _load_exclusions(db)
+
+        for tab in cs_tabs:
+            import urllib.parse
+            tab_enc = urllib.parse.quote(tab)
+            url = (
+                f"https://sheets.googleapis.com/v4/spreadsheets/{sid}"
+                f"/values/{tab_enc}!A2:N?key={api_key}"
+            )
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.get(url)
+                    resp.raise_for_status()
+                    data = resp.json()
+            except Exception as e:
+                log.warning(f"[MultiSync] Tab '{tab}' error: {e}")
+                continue
+
+            rows = data.get("values", [])
+            total_fetched += len(rows)
+            cs_from_tab = tab.upper()  # gunakan nama tab sebagai CS
+
+            for r in rows:
+                def col(i, default=""):
+                    return r[i].strip() if i < len(r) and r[i] else default
+
+                tanggal = parse_date(col(1))
+                if not tanggal:
+                    continue
+
+                try:
+                    nominal = int(float(str(col(5, "0")).replace(".", "").replace(",", "")))
+                except (ValueError, TypeError):
+                    nominal = 0
+
+                if nominal <= 0:
+                    continue
+
+                name  = col(2)
+                phone = normalize_phone(col(3))
+                # Gunakan kolom CS kalau ada, fallback ke nama tab
+                cs    = col(12) or cs_from_tab
+
+                rhash   = row_hash(tanggal, nominal, phone, cs, name)
+                is_inst = 1 if _is_institutional(name, tanggal, nominal, exclusions) else 0
+
+                await db.execute("""
+                    INSERT INTO donations
+                        (row_hash, tanggal, donor_name, donor_phone, ig_username,
+                         nominal, kode_program, asal_donasi, cs, platform,
+                         bulan, keterangan, is_institusional, source_year)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(row_hash) DO UPDATE SET
+                        is_institusional = excluded.is_institusional
+                """, (
+                    rhash, tanggal, name, phone, col(4),
+                    nominal, col(6), col(7), cs, col(13),
+                    col(11), col(10), is_inst, year
+                ))
+                total_upserted += 1
+
+        await db.commit()
+        await db.execute("""
+            UPDATE sheet_sources
+            SET last_synced_at = datetime('now'), last_row_count = ?
+            WHERE id = ?
+        """, (total_upserted, src_id))
+        await db.commit()
+
+    return {"rows_fetched": total_fetched, "rows_upserted": total_upserted, "source": source["label"]}
+
+
+# ── Main: sync semua sumber aktif ────────────────────────────────────────
 async def sync_from_sheets():
     api_key = GOOGLE_API_KEY or os.getenv("GOOGLE_API_KEY", "")
     if not api_key:
@@ -142,7 +256,7 @@ async def sync_from_sheets():
         return
 
     # Ambil semua sumber aktif dari DB
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT * FROM sheet_sources WHERE is_active = 1 ORDER BY id"
@@ -158,7 +272,11 @@ async def sync_from_sheets():
 
     for src in sources:
         try:
-            result = await _sync_one(src, api_key)
+            # Pilih mode sync: multi-tab (per CS) atau single-tab biasa
+            if src.get("sheet_name", "").lower().strip() == "per-tab cs":
+                result = await _sync_multi_tab(src, api_key)
+            else:
+                result = await _sync_one(src, api_key)
             total_fetched  += result["rows_fetched"]
             total_upserted += result["rows_upserted"]
             log.info(f"[Sync] '{src['label']}' done: {result['rows_upserted']} upserted")
@@ -169,7 +287,7 @@ async def sync_from_sheets():
     status = "error" if errors else "ok"
     msg    = "; ".join(errors) if errors else None
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         await db.execute(
             "INSERT INTO sync_log (rows_fetched, rows_upserted, status, message) VALUES (?,?,?,?)",
             (total_fetched, total_upserted, status, msg)

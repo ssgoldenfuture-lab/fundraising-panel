@@ -9,7 +9,8 @@ DB_PATH = Path(__file__).parent / "fundraising.db"
 
 
 async def _fetch(sql: str, params=()) -> list[dict]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(DB_PATH, timeout=10) as db:
+        await db.execute("PRAGMA journal_mode=WAL")
         db.row_factory = aiosqlite.Row
         async with db.execute(sql, params) as cur:
             rows = await cur.fetchall()

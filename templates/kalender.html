@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% block title %}Kalender Konten — GFI Panel{% endblock %}
+
+{% block content %}
+<div class="kal-wrap">
+
+  <!-- ── Top Stats ── -->
+  {% if events %}
+  {% set past_events = events | selectattr("donasi_stats") | list %}
+  {% set past_with_data = past_events | selectattr("donasi_stats.total_rp") | list %}
+  {% set total_blast = past_events | length %}
+  {% set total_donasi = past_events | sum(attribute="donasi_stats.total_rp") %}
+  {% set avg_donasi = (total_donasi / total_blast) if total_blast > 0 else 0 %}
+  {% set best = past_with_data | sort(attribute="donasi_stats.total_rp") | last if past_with_data else none %}
+  {% set upcoming_count = events | selectattr("is_future") | list | length %}
+
+  <div class="kal-stats">
+    <div class="ks-item">
+      <div class="ks-icon" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <div>
+        <div class="ks-val">{{ total_blast }}</div>
+        <div class="ks-lbl">Konten Diblast</div>
+      </div>
+    </div>
+    <div class="ks-item">
+      <div class="ks-icon" style="background:linear-gradient(135deg,#10b981,#059669)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      </div>
+      <div>
+        <div class="ks-val">{{ "Rp {:,.0f}".format(total_donasi).replace(",",".") }}</div>
+        <div class="ks-lbl">Total dari Blast</div>
+      </div>
+    </div>
+    <div class="ks-item">
+      <div class="ks-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      </div>
+      <div>
+        <div class="ks-val">{{ best.judul[:22]+"…" if best and best.judul|length>22 else (best.judul if best else "—") }}</div>
+        <div class="ks-lbl">Konten Terbaik</div>
+      </div>
+    </div>
+    <div class="ks-item">
+      <div class="ks-icon" style="background:linear-gradient(135deg,#8b5cf6,#6366f1)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div>
+        <div class="ks-val">{{ upcoming_count }}</div>
+        <div class="ks-lbl">Upcoming</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Calendar ── -->
+  <div class="kal-main">
+    <!-- Calendar grid -->
+    <div class="kal-grid-wrap" id="calWrap">
+      <!-- Header nav -->
+      <div class="kal-nav">
+        <button class="kal-nav-btn" onclick="changeMonth(-1)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="kal-month-title" id="monthTitle"></h2>
+        <button class="kal-nav-btn" onclick="changeMonth(1)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="kal-today-btn" onclick="goToday()">Hari Ini</button>
+      </div>
+
+      <!-- Day headers -->
+      <div class="kal-dow">
+        {% for d in ["Min","Sen","Sel","Rab","Kam","Jum","Sab"] %}
+        <div class="kal-dow-cell {% if d == 'Min' %}sunday{% elif d == 'Sab' %}saturday{% endif %}">{{ d }}</div>
+        {% endfor %}
+      </div>
+
+      <!-- Calendar cells -->
+      <div class="kal-cells" id="calCells"></div>
+    </div>
+
+    <!-- Detail panel -->
+    <div class="kal-detail" id="kalDetail">
+      <div class="kal-detail-empty" id="detailEmpty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity=".3"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+        <p>Klik event di kalender untuk lihat detail</p>
+      </div>
+      <div class="kal-detail-content" id="detailContent" style="display:none"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Inject events data as JSON -->
+<script>
+const EVENTS_DATA = {{ events_json | safe }};
+const TODAY = "{{ today_iso }}";
+
+// Color palette for event chips
+const PROG_COLORS = {
+  P7:   '#ef4444', WBP: '#3b82f6', WBA: '#06b6d4', WBS: '#0ea5e9',
+  ZAK:  '#f59e0b', QA:  '#10b981', QP:  '#10b981', QY: '#10b981',
+  EWP:  '#8b5cf6', KEI: '#ec4899', PU:  '#6366f1', SU: '#6366f1',
+  EV:   '#f97316', MAA: '#14b8a6', DUP: '#84cc16',
+};
+function getColor(programs) {
+  if (!programs || programs.length === 0) return '#6366f1';
+  return PROG_COLORS[programs[0]] || '#6366f1';
+}
+
+// Build event lookup by date
+const eventsByDate = {};
+EVENTS_DATA.forEach(ev => {
+  const d = ev.tanggal_iso;
+  if (!eventsByDate[d]) eventsByDate[d] = [];
+  eventsByDate[d].push(ev);
+});
+
+// Calendar state
+let currentYear, currentMonth;
+function initDate() {
+  const t = new Date(TODAY || new Date().toISOString().split('T')[0]);
+  currentYear  = t.getFullYear();
+  currentMonth = t.getMonth();
+}
+
+function changeMonth(delta) {
+  currentMonth += delta;
+  if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+  if (currentMonth < 0)  { currentMonth = 11; currentYear--; }
+  renderCalendar();
+}
+function goToday() {
+  const t = new Date();
+  currentYear = t.getFullYear();
+  currentMonth = t.getMonth();
+  renderCalendar();
+}
+
+const MONTH_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+function renderCalendar() {
+  document.getElementById('monthTitle').textContent = `${MONTH_ID[currentMonth]} ${currentYear}`;
+
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const daysInPrev  = new Date(currentYear, currentMonth, 0).getDate();
+
+  const cells = document.getElementById('calCells');
+  cells.innerHTML = '';
+
+  let dayNum = 1;
+  let nextNum = 1;
+  const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+
+  for (let i = 0; i < totalCells; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'kal-cell';
+
+    let dateStr, isOther = false;
+    if (i < firstDay) {
+      const d = daysInPrev - firstDay + i + 1;
+      const m = currentMonth === 0 ? 12 : currentMonth;
+      const y = currentMonth === 0 ? currentYear - 1 : currentYear;
+      dateStr = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      cell.innerHTML = `<span class="cell-num other">${d}</span>`;
+      isOther = true;
+    } else if (dayNum <= daysInMonth) {
+      dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+      const isToday = dateStr === TODAY;
+      if (isToday) cell.classList.add('today');
+      cell.innerHTML = `<span class="cell-num${isToday?' today-num':''}">${dayNum}</span>`;
+      dayNum++;
+    } else {
+      const m = currentMonth === 11 ? 1 : currentMonth + 2;
+      const y = currentMonth === 11 ? currentYear + 1 : currentYear;
+      dateStr = `${y}-${String(m).padStart(2,'0')}-${String(nextNum).padStart(2,'0')}`;
+      cell.innerHTML = `<span class="cell-num other">${nextNum}</span>`;
+      isOther = true;
+      nextNum++;
+    }
+
+    // Add events
+    const evs = eventsByDate[dateStr] || [];
+    evs.forEach(ev => {
+      const chip = document.createElement('div');
+      const color = getColor(ev.kode_program_detected);
+      chip.className = 'event-chip';
+      chip.style.background = color + '22';
+      chip.style.borderLeft = `3px solid ${color}`;
+      chip.style.color = color;
+      chip.textContent = ev.judul.length > 22 ? ev.judul.substring(0,22)+'…' : ev.judul;
+      chip.onclick = (e) => { e.stopPropagation(); showDetail(ev, color); };
+      cell.appendChild(chip);
+    });
+
+    // Donation indicator (tiny bar)
+    if (evs.length > 0 && !isOther) {
+      const hasData = evs.some(e => e.donasi_stats && e.donasi_stats.total_rp > 0);
+      if (hasData) {
+        const bar = document.createElement('div');
+        bar.className = 'cell-donasi-bar';
+        const total = evs.reduce((s, e) => s + (e.donasi_stats?.total_rp || 0), 0);
+        bar.title = `Rp ${total.toLocaleString('id-ID')}`;
+        cell.appendChild(bar);
+      }
+    }
+
+    cells.appendChild(cell);
+  }
+}
+
+function showDetail(ev, color) {
+  document.getElementById('detailEmpty').style.display = 'none';
+  const d = document.getElementById('detailContent');
+  d.style.display = 'block';
+
+  const stats = ev.donasi_stats;
+  const hasStats = stats && stats.total_rp > 0;
+  const progs = (ev.kode_program_detected || []).join(', ') || '—';
+  const window = ev.window_label || '—';
+
+  // Daily bar chart mini
+  let barsHtml = '';
+  if (hasStats && stats.daily && stats.daily.length > 0) {
+    const maxD = Math.max(...stats.daily.map(d => d.total));
+    barsHtml = `<div class="detail-bars">` +
+      stats.daily.map(d => {
+        const pct = maxD > 0 ? Math.round((d.total/maxD)*100) : 0;
+        return `<div class="detail-bar-wrap" title="${d.tanggal}: Rp ${d.total.toLocaleString('id-ID')}">
+          <div class="detail-bar" style="height:${pct}%;background:${color}"></div>
+          <div class="detail-bar-lbl">${d.tanggal.slice(8)}</div>
+        </div>`;
+      }).join('') + `</div>`;
+  }
+
+  d.innerHTML = `
+    <div class="detail-header" style="border-left:4px solid ${color}">
+      <div class="detail-date">${ev.tanggal_str}</div>
+      <h3 class="detail-title">${ev.judul}</h3>
+      ${progs !== '—' ? `<div class="detail-progs">${(ev.kode_program_detected||[]).map(p=>`<span class="detail-prog-chip" style="background:${color}22;color:${color};border-color:${color}44">${p}</span>`).join('')}</div>` : ''}
+    </div>
+
+    ${ev.narasi ? `
+    <div class="detail-section">
+      <div class="detail-section-label">📝 Narasi Blast</div>
+      <div class="detail-narasi">${ev.narasi.substring(0,400)}${ev.narasi.length>400?'…':''}</div>
+    </div>` : ''}
+
+    ${ev.media && ev.media.length > 0 ? `
+    <div class="detail-section">
+      <div class="detail-section-label">📎 Media</div>
+      <div class="detail-media-links">
+        ${ev.media.map((m,i)=>`<a href="${m}" target="_blank" class="detail-media-btn">Buka Media ${i+1}</a>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="detail-section">
+      <div class="detail-section-label">💰 Hasil Donasi</div>
+      ${hasStats ? `
+        <div class="detail-stats-row">
+          <div class="detail-stat-box">
+            <div class="dsb-val" style="color:${color}">Rp ${stats.total_rp.toLocaleString('id-ID')}</div>
+            <div class="dsb-lbl">Total donasi</div>
+          </div>
+          <div class="detail-stat-box">
+            <div class="dsb-val">${stats.jumlah_trx}</div>
+            <div class="dsb-lbl">Transaksi</div>
+          </div>
+        </div>
+        <div class="detail-window-lbl">📅 Window: ${window}</div>
+        ${barsHtml}
+      ` : `<div class="detail-no-data">${ev.is_future ? '⏳ Belum diblast' : 'Tidak ada data donasi pada window ini'}</div>`}
+    </div>
+  `;
+}
+
+// Init
+initDate();
+renderCalendar();
+</script>
+
+<style>
+:root { --kal-bg: var(--card-bg); }
+.kal-wrap { padding: 20px; display: flex; flex-direction: column; gap: 20px; height: calc(100vh - 80px); }
+
+/* Stats */
+.kal-stats {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 14px;
+}
+.ks-item {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
+  padding: 16px 18px; display: flex; align-items: center; gap: 14px;
+}
+.ks-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: white; flex-shrink: 0;
+}
+.ks-val { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+.ks-lbl { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+
+/* Main layout */
+.kal-main {
+  flex: 1; display: grid; grid-template-columns: 1fr 320px; gap: 16px;
+  min-height: 0;
+}
+
+/* Calendar grid wrapper */
+.kal-grid-wrap {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 16px; padding: 20px; display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* Navigation */
+.kal-nav {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.kal-nav-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.2);
+  color: var(--text-primary); cursor: pointer; display: flex; align-items: center;
+  justify-content: center; transition: all .2s;
+}
+.kal-nav-btn:hover { background: rgba(99,102,241,.25); }
+.kal-month-title {
+  flex: 1; text-align: center; font-size: 1.2rem; font-weight: 700;
+  color: var(--text-primary); margin: 0;
+}
+.kal-today-btn {
+  background: rgba(99,102,241,.15); border: 1px solid rgba(99,102,241,.3);
+  color: #a5b4fc; font-size: 0.78rem; padding: 6px 14px; border-radius: 8px;
+  cursor: pointer; transition: all .2s; font-weight: 600;
+}
+.kal-today-btn:hover { background: rgba(99,102,241,.3); }
+
+/* DOW headers */
+.kal-dow {
+  display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; margin-bottom: 6px;
+}
+.kal-dow-cell {
+  text-align: center; font-size: 0.72rem; font-weight: 600;
+  color: var(--text-muted); padding: 4px; text-transform: uppercase; letter-spacing: .5px;
+}
+.kal-dow-cell.sunday  { color: #f87171; }
+.kal-dow-cell.saturday { color: #60a5fa; }
+
+/* Cells */
+.kal-cells {
+  flex: 1; display: grid; grid-template-columns: repeat(7,1fr);
+  gap: 4px; min-height: 0;
+  grid-auto-rows: minmax(0, 1fr);
+}
+.kal-cell {
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px;
+  display: flex; flex-direction: column; gap: 3px; cursor: default;
+  transition: border-color .2s; overflow: hidden; min-height: 70px;
+  background: rgba(255,255,255,.01);
+}
+.kal-cell:hover { border-color: rgba(99,102,241,.4); background: rgba(99,102,241,.04); }
+.kal-cell.today { border-color: #6366f1; box-shadow: 0 0 0 1px #6366f1; background: rgba(99,102,241,.06); }
+
+.cell-num {
+  font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);
+  line-height: 1; margin-bottom: 2px; display: block;
+}
+.cell-num.other { color: var(--text-muted); opacity: .4; }
+.cell-num.today-num {
+  background: #6366f1; color: white; width: 22px; height: 22px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem;
+}
+
+.event-chip {
+  font-size: 0.65rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;
+  cursor: pointer; transition: all .15s; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; line-height: 1.4;
+}
+.event-chip:hover { filter: brightness(1.3); transform: translateY(-1px); }
+
+.cell-donasi-bar {
+  height: 3px; background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 2px; margin-top: auto;
+}
+
+/* Detail panel */
+.kal-detail {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 16px; overflow-y: auto; display: flex; flex-direction: column;
+}
+.kal-detail-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 12px; color: var(--text-muted);
+  font-size: 0.82rem; text-align: center; padding: 32px;
+}
+.kal-detail-content { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+.detail-header { padding-left: 12px; }
+.detail-date { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; }
+.detail-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 0 0 8px; }
+.detail-progs { display: flex; gap: 6px; flex-wrap: wrap; }
+.detail-prog-chip {
+  font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  border: 1px solid; display: inline-block;
+}
+
+.detail-section { background: rgba(255,255,255,.03); border-radius: 10px; padding: 12px; }
+.detail-section-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.detail-narasi { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.6; white-space: pre-wrap; max-height: 120px; overflow-y: auto; }
+
+.detail-media-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.detail-media-btn {
+  background: rgba(16,185,129,.1); color: #34d399; border: 1px solid rgba(16,185,129,.2);
+  border-radius: 8px; padding: 5px 12px; font-size: 0.75rem; text-decoration: none;
+  transition: all .2s; font-weight: 500;
+}
+.detail-media-btn:hover { background: rgba(16,185,129,.2); }
+
+.detail-stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.detail-stat-box { background: rgba(255,255,255,.03); border-radius: 8px; padding: 10px; text-align: center; }
+.dsb-val { font-size: 1rem; font-weight: 800; color: var(--text-primary); }
+.dsb-lbl { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+.detail-window-lbl { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 8px; }
+.detail-no-data { font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 12px; }
+
+/* Mini bar chart in detail */
+.detail-bars {
+  display: flex; gap: 4px; align-items: flex-end; height: 50px;
+  background: rgba(255,255,255,.02); border-radius: 6px; padding: 6px;
+}
+.detail-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.detail-bar { width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; transition: height .3s; }
+.detail-bar-lbl { font-size: 0.55rem; color: var(--text-muted); margin-top: 2px; }
+
+@media (max-width: 900px) {
+  .kal-main { grid-template-columns: 1fr; }
+  .kal-detail { display: none; }
+  .kal-stats { grid-template-columns: 1fr 1fr; }
+}
+</style>
+
+{% endblock %}

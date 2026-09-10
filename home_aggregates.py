@@ -10,7 +10,7 @@ DB_PATH: str = ""
 
 
 async def _fetch_sqlite(sql: str, params=()) -> list[dict]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(sql, params) as cur:
             return [dict(r) for r in await cur.fetchall()]

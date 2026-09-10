@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 DB_PATH: str = ""  # diisi dari main.py saat import
 
 async def _fetch(sql: str, params=()) -> list[dict]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(sql, params) as cur:
             return [dict(r) for r in await cur.fetchall()]
@@ -15,7 +15,7 @@ async def _fetch(sql: str, params=()) -> list[dict]:
 
 async def ensure_table():
     """Buat tabel web_events kalau belum ada."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS web_events (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +41,7 @@ async def insert_event(data: dict, ip: str = ""):
     """Simpan satu event tracker."""
     import hashlib
     ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:16] if ip else ""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         await db.execute("""
             INSERT INTO web_events
               (event, session_id, path, referrer,
