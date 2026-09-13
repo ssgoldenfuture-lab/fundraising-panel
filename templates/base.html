@@ -127,6 +127,10 @@ input[type=date],select{border:1px solid var(--line);background:#fff;border-radi
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span>Review FAQ</span>
     </a>
+    <a class="navitem {% if active=='faq_entries_list' %}active{% endif %}" href="/admin/faq/entries">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span>Kelola FAQ</span>
+    </a>
     {% endif %}
     {% if user.r == 'admin' %}
     <a class="navitem {% if active=='settings' %}active{% endif %}" href="/settings">
