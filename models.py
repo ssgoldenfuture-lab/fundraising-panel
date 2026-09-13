@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS faq_submissions (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     question_raw  TEXT    NOT NULL,
+    topik         TEXT,                    -- gabungan topik yang dicentang, dipisah koma
+    saran         TEXT,
     status        TEXT    NOT NULL DEFAULT 'pending',
     submitted_at  TEXT    DEFAULT (datetime('now'))
 );

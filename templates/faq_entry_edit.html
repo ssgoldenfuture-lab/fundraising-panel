@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% set active = "faq_review" %}
-{% block title %}Review Pertanyaan #{{ submission.id }} — Fundraising GFI{% endblock %}
+{% set active = "faq_entries_list" %}
+{% block title %}Edit Entry FAQ #{{ entry_id }} — Fundraising GFI{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>Review Pertanyaan #{{ submission.id }}</h1>
-  <p>Kotak Tanya · diajukan {{ submission.submitted_at }}</p>
+  <h1>Edit Entry FAQ #{{ entry_id }}</h1>
+  <p>Kelola FAQ · ubah status/isi entry yang sudah dipublish</p>
 </div>
 
 <style>
@@ -24,22 +24,11 @@
 .error-box{background:#fff0ef;border:1px solid #e8b4b0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--bad);}
 </style>
 
-<div class="card">
-  <h3>Pertanyaan Asli (apa adanya)</h3>
-  <p style="font-size:13px;white-space:pre-wrap;">{{ submission.question_raw }}</p>
-  {% if submission.topik %}
-  <p style="font-size:12px;color:var(--ink-soft);margin-top:10px;"><strong>Topik dipilih:</strong> {{ submission.topik }}</p>
-  {% endif %}
-  {% if submission.saran %}
-  <p style="font-size:12px;color:var(--ink-soft);margin-top:6px;"><strong>Saran/usulan:</strong> {{ submission.saran }}</p>
-  {% endif %}
-</div>
-
 {% if error %}
 <div class="error-box">{{ error }}</div>
 {% endif %}
 
-<form method="post" action="/admin/faq/{{ submission.id }}" class="card">
+<form method="post" action="/admin/faq/entries/{{ entry_id }}/edit" class="card">
   <h3>Tindak Lanjut</h3>
 
   <div class="form-group">
@@ -54,7 +43,7 @@
   <div class="form-group">
     <label>Pertanyaan Publik (tulis ulang, umum/dianonimkan)</label>
     <textarea name="question_public" rows="3" required
-      placeholder="Tulis ulang pertanyaan di atas dalam bentuk umum — jangan copy-paste langsung dari pertanyaan asli.">{{ form.question_public or '' }}</textarea>
+      placeholder="Tulis ulang pertanyaan dalam bentuk umum — jangan copy-paste langsung dari pertanyaan asli.">{{ form.question_public or '' }}</textarea>
   </div>
 
   <div class="status-section">
@@ -99,8 +88,8 @@
   </div>
 
   <div style="display:flex;gap:8px;margin-top:8px;">
-    <button type="submit" class="btn btn-primary">Simpan &amp; Tandai Selesai</button>
-    <a href="/admin/faq" class="btn">Batal</a>
+    <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+    <a href="/admin/faq/entries" class="btn">Batal</a>
   </div>
 </form>
 {% endblock %}
