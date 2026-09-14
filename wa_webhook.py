@@ -18,16 +18,11 @@ from datetime import date
 
 log = logging.getLogger("wa_webhook")
 
-<<<<<<< Updated upstream
-# Bot LID/phone — diisi dari env. Contoh: REPLAI_BOT_LID=21634488488118
-_BOT_LID: str = os.getenv("REPLAI_BOT_LID", "")
-=======
 # Bot LID/phone — diisi dari env
 # REPLAI_BOT_LID: LID format (15 digit, mulai 1) — muncul di @mention grup
 # REPLAI_BOT_PHONE: nomor WA bot (628xxx) — fallback jika LID belum diketahui
 _BOT_LID:   str = os.getenv("REPLAI_BOT_LID", "").strip()
 _BOT_PHONE: str = os.getenv("REPLAI_BOT_PHONE", "").strip()  # misal: 6285187290682
->>>>>>> Stashed changes
 
 # Kata kunci TAMBAHAN untuk trigger di grup (selain tag langsung)
 GROUP_TRIGGERS = ["!laporan", "!cs", "!donasi", "!status", "!bot"]
