@@ -3,40 +3,165 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kotak Tanya — Fundraising GFI</title>
+<title>Kotak Tanya &amp; Aspirasi — Fundraising GFI</title>
 <style>
 :root{--bg:#F7F6F2;--card:#fff;--ink:#1B2B22;--ink-soft:#5A6B60;--accent:#2F6B4F;--accent-soft:#E4EFE8;--bad:#B04A3F;--line:#E3E1D8;}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;}
-.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.06);}
-.logo{font-size:20px;font-weight:700;color:var(--accent);margin-bottom:6px;}
-.sub{font-size:13px;color:var(--ink-soft);margin-bottom:28px;}
-label{display:block;font-size:12px;color:var(--ink-soft);font-weight:500;margin-bottom:5px;}
-textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;outline:none;background:#fff;font-family:inherit;resize:vertical;transition:border-color .15s;}
-textarea:focus{border-color:var(--accent);}
-.field{margin-bottom:16px;}
-.btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;transition:opacity .15s;}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+.wrap{max-width:660px;margin:0 auto;padding:40px 20px 60px;}
+
+.title{font-size:22px;font-weight:700;color:var(--accent);margin-bottom:20px;line-height:1.3;}
+
+.intro p{font-size:14px;line-height:1.75;margin-bottom:14px;}
+
+.rules-heading{font-size:15px;font-weight:700;margin:24px 0 12px;}
+.rules{padding-left:22px;margin-bottom:16px;}
+.rules li{font-size:14px;line-height:1.75;margin-bottom:14px;}
+.rules li p{margin-top:10px;}
+
+.closing{font-size:14px;line-height:1.75;margin:20px 0 28px;}
+
+.form-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px;}
+.field{margin-bottom:20px;}
+.field:last-of-type{margin-bottom:0;}
+label{display:block;font-size:13px;color:var(--ink);font-weight:600;margin-bottom:6px;}
+.helper{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+
+.checkbox-group{display:flex;flex-direction:column;gap:8px;}
+.checkbox-group label{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400;color:var(--ink);margin-bottom:0;}
+.other-row{display:flex;align-items:center;gap:8px;}
+.other-row label{flex-shrink:0;}
+.other-row input[type=text]{flex:1;}
+
+textarea,input[type=text]{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+  font-size:14px;outline:none;background:#fff;font-family:inherit;resize:vertical;transition:border-color .15s;}
+textarea:focus,input[type=text]:focus{border-color:var(--accent);}
+
+.btn{display:inline-block;box-sizing:border-box;width:100%;background:var(--accent);color:#fff;border:none;
+  border-radius:8px;padding:12px;font-size:14px;font-weight:600;text-align:center;text-decoration:none;
+  cursor:pointer;margin-top:8px;transition:opacity .15s;}
 .btn:hover{opacity:.88;}
+.btn-outline{background:#fff;color:var(--ink);border:1px solid var(--line);}
+
+.review-title{font-size:15px;font-weight:700;margin-bottom:16px;}
+.review-row{margin-bottom:16px;}
+.review-row:last-of-type{margin-bottom:0;}
+.review-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);
+  font-weight:600;margin-bottom:4px;}
+.review-value{font-size:14px;color:var(--ink);line-height:1.6;white-space:pre-wrap;}
+.review-actions{display:flex;gap:10px;margin-top:24px;}
+.review-actions form{flex:1;}
+
 .success{background:var(--accent-soft);border:1px solid #86efac;border-radius:8px;padding:14px 16px;font-size:13px;color:var(--accent);}
 .err{background:#fff0ef;border:1px solid #e8b4b0;border-radius:8px;padding:10px 12px;font-size:13px;color:var(--bad);margin-bottom:16px;}
 </style>
 </head>
 <body>
-<div class="box">
-  <div class="logo">Kotak Tanya</div>
-  <div class="sub">Golden Future Indonesia · Ajukan pertanyaanmu</div>
+<div class="wrap">
+
+  <div class="title">Kotak Tanya &amp; Aspirasi — Fundraising GFI</div>
+
+  <div class="intro">
+    <p>Assalamu'alaikum warahmatullahi wabarakatuh.</p>
+    <p>Bismillah</p>
+    <p>Form ini dibuka untuk teman-teman Golden Future Indonesia yang punya pertanyaan, kendala, atau usulan seputar fundraising — termasuk hal-hal yang mungkin belum sempat tersampaikan, atau terasa kurang nyaman untuk ditanyakan secara langsung.</p>
+    <p>Tujuannya satu: supaya sistem kerja kita ke depan jadi lebih baik. Ini bukan untuk menciptakan silo effect, justru sebaliknya — supaya hal-hal yang mengendap bisa keluar dan dibenahi bersama. Setiap masukan yang masuk akan dirangkum dan dijawab dalam halaman FAQ Fundraising yang bisa diakses semua anggota GF. Form ini tetap dibuka, dan FAQ-nya akan terus diperbarui selama masih ada pertanyaan baru.</p>
+  </div>
+
+  <div class="rules-heading">Sebelum mengisi, mohon diperhatikan:</div>
+  <ol class="rules">
+    <li>Form ini tidak mengumpulkan nama maupun email. Yang tercatat hanya isi jawaban dan waktu pengiriman.</li>
+    <li>Ruang lingkupnya hal teknis, alur kerja, dan struktur di lingkup fundraising. Untuk urusan di luar itu, sebaiknya disampaikan melalui jalur divisi yang bersangkutan.</li>
+    <li>
+      Pertanyaan tentang peran, keputusan, atau alur kerja tetap boleh diajukan, meskipun menyebut nama orang. Contohnya: "Kenapa sekarang iklan dipegang internal?" atau "Kenapa Ilham yang menangani bagian itu?" — pertanyaan semacam ini justru yang diharapkan masuk.
+      <p>Yang bukan tempatnya di sini adalah penilaian terhadap pribadi seseorang, misalnya "Kok Ilham orangnya begitu ya?". Untuk hal semacam itu, mohon disampaikan langsung kepada yang bersangkutan. Masukan yang mengarah ke penilaian pribadi tidak akan dimuat dalam FAQ.</p>
+    </li>
+    <li>Karena sifatnya anonim, kami tidak bisa menghubungi balik untuk meminta penjelasan tambahan. Mohon tuliskan pertanyaannya sejelas mungkin.</li>
+    <li>Satu submit untuk satu pertanyaan atau satu hal saja. Kalau ada beberapa hal yang ingin disampaikan, silakan kirim form ini berulang untuk masing-masingnya — supaya setiap poin bisa dijawab dan ditelusuri dengan rapi.</li>
+    <li>Untuk hal yang tidak cukup dijawab tertulis, topiknya akan diagendakan untuk dibahas langsung — offline maupun online. Topik yang masuk agenda ditandai di halaman FAQ, dan pembahasannya terbuka untuk siapa saja tanpa perlu menyebutkan siapa yang mengajukan. Hasil pembahasannya kemudian dirangkum kembali menjadi satu poin tanya-jawab di FAQ.</li>
+  </ol>
+
+  <p class="closing">Mari sama-sama luruskan niat: semua ini hanya untuk GF yang lebih baik, di internal maupun eksternal. Semoga jadi jalan yang baik untuk saling memperbaiki. Jazakumullahu khairan.</p>
+
   {% if sent == "1" %}
   <div class="success">Terima kasih, pertanyaanmu sudah masuk.</div>
-  {% else %}
-  {% if error == "1" %}<div class="err">Pertanyaan tidak boleh kosong.</div>{% endif %}
-  <form method="post" action="/kotak-tanya">
-    <div class="field">
-      <label for="question_raw">Pertanyaan</label>
-      <textarea id="question_raw" name="question_raw" rows="5" required placeholder="Tulis pertanyaanmu di sini..."></textarea>
+  <a href="/kotak-tanya" class="btn">Ajukan Pertanyaan Lain</a>
+
+  {% elif stage == "review" %}
+  <div class="form-card">
+    <div class="review-title">Konfirmasi sebelum dikirim</div>
+
+    <div class="review-row">
+      <div class="review-label">Topik yang ingin disampaikan</div>
+      <div class="review-value">
+        {% set semua_topik = form.topik + ([form.topik_other] if form.topik_other else []) %}
+        {% if semua_topik %}{{ semua_topik | join(", ") }}{% else %}<em>(tidak ada)</em>{% endif %}
+      </div>
     </div>
+
+    <div class="review-row">
+      <div class="review-label">Pertanyaan atau kendala yang ingin disampaikan</div>
+      <div class="review-value">{{ form.question_raw }}</div>
+    </div>
+
+    <div class="review-row">
+      <div class="review-label">Usulan atau saran perbaikan</div>
+      <div class="review-value">{% if form.saran %}{{ form.saran }}{% else %}<em>(tidak ada)</em>{% endif %}</div>
+    </div>
+
+    <div class="review-actions">
+      <form method="post" action="/kotak-tanya">
+        {% for t in form.topik %}<input type="hidden" name="topik" value="{{ t }}">{% endfor %}
+        <input type="hidden" name="topik_other" value="{{ form.topik_other or '' }}">
+        <input type="hidden" name="question_raw" value="{{ form.question_raw or '' }}">
+        <input type="hidden" name="saran" value="{{ form.saran or '' }}">
+        <input type="hidden" name="stage" value="edit">
+        <button type="submit" class="btn btn-outline">Kembali, mau edit</button>
+      </form>
+      <form method="post" action="/kotak-tanya">
+        {% for t in form.topik %}<input type="hidden" name="topik" value="{{ t }}">{% endfor %}
+        <input type="hidden" name="topik_other" value="{{ form.topik_other or '' }}">
+        <input type="hidden" name="question_raw" value="{{ form.question_raw or '' }}">
+        <input type="hidden" name="saran" value="{{ form.saran or '' }}">
+        <input type="hidden" name="stage" value="confirmed">
+        <button type="submit" class="btn">Ya, Kirim</button>
+      </form>
+    </div>
+  </div>
+
+  {% else %}
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <form method="post" action="/kotak-tanya" class="form-card">
+
+    <div class="field">
+      <label>Topik yang ingin disampaikan</label>
+      <div class="checkbox-group">
+        <label><input type="checkbox" name="topik" value="Teknis &amp; tools" {% if "Teknis & tools" in form.topik %}checked{% endif %}> Teknis &amp; tools</label>
+        <label><input type="checkbox" name="topik" value="Alur kerja &amp; koordinasi" {% if "Alur kerja & koordinasi" in form.topik %}checked{% endif %}> Alur kerja &amp; koordinasi</label>
+        <label><input type="checkbox" name="topik" value="Struktur &amp; pembagian peran" {% if "Struktur & pembagian peran" in form.topik %}checked{% endif %}> Struktur &amp; pembagian peran</label>
+        <div class="other-row">
+          <label style="margin-bottom:0;">Other:</label>
+          <input type="text" name="topik_other" value="{{ form.topik_other or '' }}" placeholder="Tulis topik lain di sini...">
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="question_raw">Pertanyaan atau kendala yang ingin disampaikan</label>
+      <div class="helper" style="margin-top:0;margin-bottom:8px;">Tuliskan sejelas mungkin, karena kami tidak bisa menanyakan balik.</div>
+      <textarea id="question_raw" name="question_raw" rows="5" required placeholder="Tulis pertanyaanmu di sini...">{{ form.question_raw or '' }}</textarea>
+    </div>
+
+    <div class="field">
+      <label for="saran">Ada usulan atau saran perbaikan? (opsional)</label>
+      <div class="helper" style="margin-top:0;margin-bottom:8px;">Kalau ada bayangan solusinya, silakan tuliskan. Kalau tidak ada, boleh dikosongkan.</div>
+      <textarea id="saran" name="saran" rows="3" placeholder="Tulis usulan/saranmu di sini (opsional)...">{{ form.saran or '' }}</textarea>
+    </div>
+
     <button type="submit" class="btn">Kirim</button>
   </form>
   {% endif %}
+
 </div>
 </body>
 </html>

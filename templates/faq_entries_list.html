@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% set active = "faq_entries_list" %}
+{% block title %}Kelola FAQ — Fundraising GFI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Kelola FAQ</h1>
+  <p>Semua entry FAQ yang sudah dipublish — terjawab, diagendakan, dan luar lingkup</p>
+</div>
+
+<div class="card">
+  <h3>Semua Entry ({{ entries | length }})</h3>
+  {% if entries %}
+  <table>
+    <thead>
+      <tr>
+        <th>Kategori / Status</th>
+        <th>Pertanyaan Publik</th>
+        <th>Terakhir Diupdate</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td style="white-space:nowrap;">
+          <span class="pill {% if e.status == 'luar_lingkup' %}pill-bad{% endif %}">{{ e.status }}</span>
+          {% if e.category %}<div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">{{ e.category }}</div>{% endif %}
+        </td>
+        <td style="max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ e.question_public }}">
+          {{ e.question_public }}
+        </td>
+        <td style="font-size:12px;color:var(--ink-soft);white-space:nowrap;">{{ e.updated_at }}</td>
+        <td style="white-space:nowrap;">
+          <a href="/admin/faq/entries/{{ e.id }}/edit" class="btn">Edit</a>
+          <a href="/admin/faq/entries/{{ e.id }}/delete" class="btn" style="color:var(--bad);border-color:var(--bad);">Hapus</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--ink-soft);font-size:12px;">Belum ada entry FAQ yang dipublish.</p>
+  {% endif %}
+</div>
+{% endblock %}
