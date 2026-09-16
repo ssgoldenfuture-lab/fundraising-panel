@@ -25,6 +25,7 @@ _BOT_LID:   str = os.getenv("REPLAI_BOT_LID", "").strip()
 _BOT_PHONE: str = os.getenv("REPLAI_BOT_PHONE", "").strip()  # misal: 6285187290682
 
 
+
 # Kata kunci TAMBAHAN untuk trigger di grup (selain tag langsung)
 GROUP_TRIGGERS = ["!laporan", "!cs", "!donasi", "!status", "!bot"]
 
