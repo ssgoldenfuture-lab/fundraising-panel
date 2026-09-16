@@ -154,32 +154,65 @@ async def lifespan(app: FastAPI):
         "port":   3306,
         "db":     "berdonasi",
         "user":   "berdonasi_user",
-        "password": os.getenv("BERDONASI_DB_PASS", "GFI_db_2025_@Xk9"),
+        "password": os.getenv("BERDONASI_DB_PASS", ""),
         "charset": "utf8mb4",
         "autocommit": True,
     }
     ok = await bdb.test_connection()
     log.info(f"berdonasi MySQL: {'OK' if ok else 'GAGAL — transaksi online tidak tersedia'}")
 
-    # Sync pertama saat startup — jalankan di background agar port langsung tersedia
-    import asyncio
-    asyncio.create_task(_startup_sync())
+    # ── Scheduler: hanya jalan di 1 worker ────────────────────────────────────
+    # Uvicorn multi-worker = setiap worker punya lifespan sendiri.
+    # Kalau scheduler jalan di semua worker → 2 sync bersamaan → race condition
+    # di SQLite (database is locked). Fix: cek apakah ini worker pertama
+    # dengan membandingkan PID dengan worker lain via file lock sederhana.
+    import asyncio, pathlib
+    _scheduler_lock = pathlib.Path("/tmp/gfi_scheduler.lock")
+    _is_primary_worker = False
+    try:
+        # Tulis PID kita. Kalau file sudah ada dan PID-nya masih hidup → bukan primary.
+        import os as _os
+        if _scheduler_lock.exists():
+            old_pid = int(_scheduler_lock.read_text().strip())
+            try:
+                _os.kill(old_pid, 0)  # cek apakah PID masih hidup
+                log.info(f"Scheduler sudah jalan di PID {old_pid} — worker ini skip scheduler")
+            except (ProcessLookupError, PermissionError):
+                # PID lama sudah mati → kita ambil alih
+                _scheduler_lock.write_text(str(_os.getpid()))
+                _is_primary_worker = True
+        else:
+            _scheduler_lock.write_text(str(_os.getpid()))
+            _is_primary_worker = True
+    except Exception as e:
+        log.warning(f"Scheduler lock check gagal ({e}) — jalankan scheduler anyway")
+        _is_primary_worker = True
 
-    # Sync tiap 10 menit
-    scheduler.add_job(sync_from_sheets, "interval", minutes=10, id="sheets_sync",
-                      misfire_grace_time=120)
+    if _is_primary_worker:
+        # Sync pertama saat startup — jalankan di background agar port langsung tersedia
+        asyncio.create_task(_startup_sync())
 
-    # Laporan WA harian — default jam 07:00 WIB, bisa diubah dari settings
-    wa_hour = int(os.getenv("WA_REPORT_HOUR", "7"))
-    scheduler.add_job(_send_wa_report, "cron", hour=wa_hour, minute=0,
-                      id="wa_daily_report", misfire_grace_time=3600)
+        # Sync tiap 10 menit
+        scheduler.add_job(sync_from_sheets, "interval", minutes=10, id="sheets_sync",
+                          misfire_grace_time=120)
 
-    scheduler.start()
-    log.info(f"Scheduler started — sync tiap 10 menit + WA report jam {wa_hour}:00")
+        # Laporan WA harian — default jam 07:00 WIB, bisa diubah dari settings
+        wa_hour = int(os.getenv("WA_REPORT_HOUR", "7"))
+        scheduler.add_job(_send_wa_report, "cron", hour=wa_hour, minute=0,
+                          id="wa_daily_report", misfire_grace_time=3600)
+
+        scheduler.start()
+        log.info(f"Scheduler started (primary worker PID={_os.getpid()}) — sync tiap 10 menit + WA report jam {wa_hour}:00")
+    # ─────────────────────────────────────────────────────────────────────────
 
     yield
 
-    scheduler.shutdown(wait=False)
+    if _is_primary_worker:
+        scheduler.shutdown(wait=False)
+        try:
+            _scheduler_lock.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
