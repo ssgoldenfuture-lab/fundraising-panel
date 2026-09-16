@@ -30,7 +30,14 @@ _BOT_PHONE: str = os.getenv("REPLAI_BOT_PHONE", "").strip()  # misal: 6285187290
 GROUP_TRIGGERS = ["!laporan", "!cs", "!donasi", "!status", "!bot"]
 
 # Whitelist nomor yang boleh query lewat DM (kosong = semua orang boleh)
-DM_WHITELIST: list[str] = []
+# Whitelist nomor yang boleh query lewat DM
+# Kosong = semua orang boleh. Diisi = hanya nomor ini yang dilayani.
+DM_WHITELIST: list[str] = [
+    "6282130536385",  # Ilham
+    "6285187290654",  # Ugun
+    "6288219892230",  # Fitri
+]
+
 
 # ── Permanent Group Activation ───────────────────────────────────────────────
 # Sekali grup tag bot → bot respon semua pesan di grup itu selamanya (tanpa tag lagi).
