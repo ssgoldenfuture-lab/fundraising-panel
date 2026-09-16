@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FAQ — Fundraising GFI</title>
 <style>
-:root{--bg:#F7F6F2;--card:#fff;--ink:#1B2B22;--ink-soft:#5A6B60;--accent:#2F6B4F;--accent-soft:#E4EFE8;--bad:#B04A3F;--line:#E3E1D8;}
+:root{--bg:#F7F6F2;--card:#fff;--ink:#1B2B22;--ink-soft:#5A6B60;--accent:#2F6B4F;--accent-rgb:47,107,79;--accent-soft:#E4EFE8;--bad:#B04A3F;--line:#E3E1D8;}
 *{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
 body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
 
 .topbar{background:var(--card);border-bottom:1px solid var(--line);padding:20px 24px;}
@@ -61,7 +62,9 @@ body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",
 .status-table th,.status-table td{text-align:left;font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line);}
 .status-table th{color:var(--ink-soft);font-weight:600;text-transform:uppercase;font-size:11px;}
 
-.footer-note{text-align:center;font-size:11px;color:var(--ink-soft);padding:24px 20px 32px;}
+.footer-note{text-align:center;font-size:11px;color:var(--ink-soft);padding:20px 20px 28px;margin-top:8px;
+  border-top:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(var(--accent-rgb),.06), rgba(var(--accent-rgb),0) 70%);}
 
 @media(max-width:800px){
   .layout{grid-template-columns:1fr;}
@@ -109,6 +112,10 @@ body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",
         {% for e in entries %}
         <div class="entry">
           <div class="question">{{ e.question_public }}</div>
+          {% if e.catatan_konteks %}
+          <div class="field-label">Catatan / Konteks</div>
+          <div class="field-value">{{ e.catatan_konteks }}</div>
+          {% endif %}
           <div class="answer">{{ e.answer }}</div>
         </div>
         {% endfor %}
@@ -124,6 +131,10 @@ body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",
       {% for e in groups['Lainnya'] %}
       <div class="entry">
         <div class="question">{{ e.question_public }}</div>
+        {% if e.catatan_konteks %}
+        <div class="field-label">Catatan / Konteks</div>
+        <div class="field-value">{{ e.catatan_konteks }}</div>
+        {% endif %}
         <div class="answer">{{ e.answer }}</div>
       </div>
       {% endfor %}
@@ -138,6 +149,10 @@ body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",
         <div class="entry">
           <div class="field-label">Topik</div>
           <div class="field-value">{{ e.question_public }}</div>
+          {% if e.catatan_konteks %}
+          <div class="field-label">Catatan / Konteks</div>
+          <div class="field-value">{{ e.catatan_konteks }}</div>
+          {% endif %}
           <div class="field-label">Rencana Pembahasan</div>
           <div class="field-value">{{ e.rencana_pembahasan }}</div>
         </div>
@@ -156,6 +171,10 @@ body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",
         <div class="entry">
           <div class="field-label">Topik</div>
           <div class="field-value">{{ e.question_public }}</div>
+          {% if e.catatan_konteks %}
+          <div class="field-label">Catatan / Konteks</div>
+          <div class="field-value">{{ e.catatan_konteks }}</div>
+          {% endif %}
           <div class="field-label">Ranah Divisi</div>
           <div class="field-value">{{ e.ranah_divisi }}</div>
           <div class="field-label">Jalur yang Disarankan</div>

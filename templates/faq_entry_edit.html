@@ -16,12 +16,14 @@
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--accent);}
 .form-group textarea{width:100%;resize:vertical;}
 .form-group select{width:100%;}
-.status-section{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px;background:var(--bg);}
-.status-section h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:10px;}
-.radio-row{display:inline-flex;gap:24px;flex-wrap:wrap;}
-.radio-row label{font-size:13px;font-weight:400;text-transform:none;display:inline-flex;align-items:center;gap:6px;color:var(--ink);}
-.radio-row input[type=radio]{width:auto;min-width:0;padding:0;border:none;margin:0;}
 .error-box{background:#fff0ef;border:1px solid #e8b4b0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--bad);}
+.tab-row{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;}
+.tab-btn{background:none;border:none;padding:10px 16px;font-size:13px;font-weight:600;color:var(--ink-soft);
+  cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;}
+.tab-btn:hover{color:var(--ink);}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
 </style>
 
 {% if error %}
@@ -32,49 +34,50 @@
   <h3>Tindak Lanjut</h3>
 
   <div class="form-group">
-    <label>Status</label>
-    <div class="radio-row">
-      <label><input type="radio" name="status" value="terjawab" required {% if form.status == 'terjawab' %}checked{% endif %}> Terjawab</label>
-      <label><input type="radio" name="status" value="diagendakan" {% if form.status == 'diagendakan' %}checked{% endif %}> Diagendakan</label>
-      <label><input type="radio" name="status" value="luar_lingkup" {% if form.status == 'luar_lingkup' %}checked{% endif %}> Luar Lingkup</label>
-    </div>
-  </div>
-
-  <div class="form-group">
     <label>Pertanyaan Publik (tulis ulang, umum/dianonimkan)</label>
     <textarea name="question_public" rows="3" required
       placeholder="Tulis ulang pertanyaan dalam bentuk umum — jangan copy-paste langsung dari pertanyaan asli.">{{ form.question_public or '' }}</textarea>
   </div>
 
-  <div class="status-section">
-    <h4>Field untuk status: Terjawab</h4>
-    <div class="form-row">
-      <div class="form-group" style="flex:1;min-width:200px;">
-        <label>Kategori</label>
-        <select name="category">
-          <option value="">-- Pilih kategori --</option>
-          {% for cat in categories %}
-          <option value="{{ cat }}" {% if form.category == cat %}selected{% endif %}>{{ cat }}</option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
+  <div class="form-group">
+    <label>Kategori</label>
+    <select name="category" required>
+      <option value="">-- Pilih kategori --</option>
+      {% for cat in categories %}
+      <option value="{{ cat }}" {% if form.category == cat %}selected{% endif %}>{{ cat }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Catatan / Konteks (opsional)</label>
+    <textarea name="catatan_konteks" rows="2"
+      placeholder="Opsional — konteks atau latar belakang yang perlu diketahui pembaca.">{{ form.catatan_konteks or '' }}</textarea>
+  </div>
+
+  <input type="hidden" name="status" id="status-input" value="{{ form.status or 'terjawab' }}">
+
+  <div class="tab-row">
+    <button type="button" class="tab-btn" data-tab="terjawab">Terjawab</button>
+    <button type="button" class="tab-btn" data-tab="diagendakan">Diagendakan</button>
+    <button type="button" class="tab-btn" data-tab="luar_lingkup">Luar Lingkup</button>
+  </div>
+
+  <div class="tab-panel" data-panel="terjawab">
     <div class="form-group">
       <label>Jawaban</label>
       <textarea name="answer" rows="3" placeholder="Isi jawaban untuk ditampilkan ke publik...">{{ form.answer or '' }}</textarea>
     </div>
   </div>
 
-  <div class="status-section">
-    <h4>Field untuk status: Diagendakan</h4>
+  <div class="tab-panel" data-panel="diagendakan">
     <div class="form-group">
       <label>Rencana Pembahasan</label>
       <textarea name="rencana_pembahasan" rows="2" placeholder="mis. Akan dibahas di rapat mingguan tanggal...">{{ form.rencana_pembahasan or '' }}</textarea>
     </div>
   </div>
 
-  <div class="status-section">
-    <h4>Field untuk status: Luar Lingkup</h4>
+  <div class="tab-panel" data-panel="luar_lingkup">
     <div class="form-row">
       <div class="form-group" style="flex:1;min-width:200px;">
         <label>Ranah / Divisi</label>
@@ -92,4 +95,21 @@
     <a href="/admin/faq/entries" class="btn">Batal</a>
   </div>
 </form>
+
+<script>
+(function(){
+  var statusInput = document.getElementById('status-input');
+  var tabs = document.querySelectorAll('.tab-btn');
+  var panels = document.querySelectorAll('.tab-panel');
+  function activate(tab){
+    tabs.forEach(function(t){ t.classList.toggle('active', t.dataset.tab === tab); });
+    panels.forEach(function(p){ p.classList.toggle('active', p.dataset.panel === tab); });
+    statusInput.value = tab;
+  }
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){ activate(t.dataset.tab); });
+  });
+  activate(statusInput.value || 'terjawab');
+})();
+</script>
 {% endblock %}

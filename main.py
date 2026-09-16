@@ -185,6 +185,9 @@ app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
+APP_VERSION = (BASE_DIR / "VERSION").read_text().strip()
+templates.env.globals["app_version"] = APP_VERSION
+
 # Format rupiah di template
 def fmt_rp(v):
     try:
@@ -237,6 +240,8 @@ FAQ_CATEGORIES = [
     "B. Cara Handle Donatur",
     "C. Alur Kerja & Koordinasi",
     "D. Struktur & Pembagian Peran",
+    "E. Broadcast WhatsApp",
+    "F. Database Donatur",
 ]
 
 # â”€â”€ Date helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -344,19 +349,19 @@ async def faq_public_page(request: Request):
     async with aiosqlite.connect(agg.DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT category, question_public, answer FROM faq_entries "
+            "SELECT category, question_public, answer, catatan_konteks FROM faq_entries "
             "WHERE status = 'terjawab' ORDER BY category, updated_at"
         ) as cur:
             rows = [dict(r) for r in await cur.fetchall()]
 
         async with db.execute(
-            "SELECT question_public, rencana_pembahasan FROM faq_entries "
+            "SELECT question_public, rencana_pembahasan, catatan_konteks FROM faq_entries "
             "WHERE status = 'diagendakan' ORDER BY updated_at"
         ) as cur:
             diagendakan = [dict(r) for r in await cur.fetchall()]
 
         async with db.execute(
-            "SELECT question_public, ranah_divisi, jalur_disarankan FROM faq_entries "
+            "SELECT question_public, ranah_divisi, jalur_disarankan, catatan_konteks FROM faq_entries "
             "WHERE status = 'luar_lingkup' ORDER BY updated_at"
         ) as cur:
             luar_lingkup = [dict(r) for r in await cur.fetchall()]
@@ -538,10 +543,12 @@ async def faq_entries_list_page(request: Request):
         "request": request, "user": user, "entries": entries,
     })
 
-def _faq_entry_validate(status: str, category: str, answer: str,
+def _faq_entry_validate(status: str, question_public: str, category: str, answer: str,
                          rencana_pembahasan: str, ranah_divisi: str, jalur_disarankan: str):
-    if status == "terjawab" and not category.strip():
-        return "Kategori wajib dipilih untuk status Terjawab."
+    if not question_public.strip():
+        return "Pertanyaan Publik wajib diisi."
+    if not category.strip():
+        return "Kategori wajib dipilih."
     if status == "terjawab" and not answer.strip():
         return "Jawaban wajib diisi untuk status Terjawab."
     if status == "diagendakan" and not rencana_pembahasan.strip():
@@ -562,7 +569,7 @@ async def faq_entry_edit_page(request: Request, entry_id: int):
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT status, category, question_public, answer, rencana_pembahasan, "
-            "ranah_divisi, jalur_disarankan FROM faq_entries WHERE id = ?",
+            "ranah_divisi, jalur_disarankan, catatan_konteks FROM faq_entries WHERE id = ?",
             (entry_id,)
         ) as cur:
             row = await cur.fetchone()
@@ -582,6 +589,7 @@ async def faq_entry_edit_post(
     status: str = Form(...),
     question_public: str = Form(...),
     category: str = Form(""),
+    catatan_konteks: str = Form(""),
     answer: str = Form(""),
     rencana_pembahasan: str = Form(""),
     ranah_divisi: str = Form(""),
@@ -595,12 +603,12 @@ async def faq_entry_edit_post(
 
     form_values = {
         "status": status, "question_public": question_public,
-        "category": category, "answer": answer,
+        "category": category, "catatan_konteks": catatan_konteks, "answer": answer,
         "rencana_pembahasan": rencana_pembahasan,
         "ranah_divisi": ranah_divisi, "jalur_disarankan": jalur_disarankan,
     }
 
-    error = _faq_entry_validate(status, category, answer, rencana_pembahasan, ranah_divisi, jalur_disarankan)
+    error = _faq_entry_validate(status, question_public, category, answer, rencana_pembahasan, ranah_divisi, jalur_disarankan)
     if error:
         return templates.TemplateResponse("faq_entry_edit.html", {
             "request": request, "user": user, "entry_id": entry_id,
@@ -610,17 +618,20 @@ async def faq_entry_edit_post(
     reviewer = await get_user(user["u"])
     reviewer_id = reviewer["id"] if reviewer else None
 
+    category_v = category.strip() or None
+    catatan_v = catatan_konteks.strip() or None
+
     # Cuma simpan field yang relevan dengan status yang dipilih — sisanya NULL
     if status == "terjawab":
-        category_v, answer_v = category.strip() or None, answer.strip() or None
+        answer_v = answer.strip() or None
         rencana_v = ranah_v = jalur_v = None
     elif status == "diagendakan":
         rencana_v = rencana_pembahasan.strip() or None
-        category_v = answer_v = ranah_v = jalur_v = None
+        answer_v = ranah_v = jalur_v = None
     elif status == "luar_lingkup":
         ranah_v = ranah_divisi.strip() or None
         jalur_v = jalur_disarankan.strip() or None
-        category_v = answer_v = rencana_v = None
+        answer_v = rencana_v = None
     else:
         raise HTTPException(status_code=400, detail="Status tidak valid")
 
@@ -629,11 +640,11 @@ async def faq_entry_edit_post(
             UPDATE faq_entries
             SET status = ?, category = ?, question_public = ?, answer = ?,
                 rencana_pembahasan = ?, ranah_divisi = ?, jalur_disarankan = ?,
-                updated_by = ?, updated_at = datetime('now')
+                catatan_konteks = ?, updated_by = ?, updated_at = datetime('now')
             WHERE id = ?
         """, (
             status, category_v, question_public.strip(), answer_v, rencana_v,
-            ranah_v, jalur_v, reviewer_id, entry_id
+            ranah_v, jalur_v, catatan_v, reviewer_id, entry_id
         ))
         await db.commit()
 
@@ -751,6 +762,7 @@ async def faq_review_detail_post(
     status: str = Form(...),
     question_public: str = Form(...),
     category: str = Form(""),
+    catatan_konteks: str = Form(""),
     answer: str = Form(""),
     rencana_pembahasan: str = Form(""),
     ranah_divisi: str = Form(""),
@@ -764,14 +776,16 @@ async def faq_review_detail_post(
 
     form_values = {
         "status": status, "question_public": question_public,
-        "category": category, "answer": answer,
+        "category": category, "catatan_konteks": catatan_konteks, "answer": answer,
         "rencana_pembahasan": rencana_pembahasan,
         "ranah_divisi": ranah_divisi, "jalur_disarankan": jalur_disarankan,
     }
 
     error = None
-    if status == "terjawab" and not category.strip():
-        error = "Kategori wajib dipilih untuk status Terjawab."
+    if not question_public.strip():
+        error = "Pertanyaan Publik wajib diisi."
+    elif not category.strip():
+        error = "Kategori wajib dipilih."
     elif status == "terjawab" and not answer.strip():
         error = "Jawaban wajib diisi untuk status Terjawab."
     elif status == "diagendakan" and not rencana_pembahasan.strip():
@@ -797,17 +811,20 @@ async def faq_review_detail_post(
     reviewer = await get_user(user["u"])
     reviewer_id = reviewer["id"] if reviewer else None
 
+    category_v = category.strip() or None
+    catatan_v = catatan_konteks.strip() or None
+
     # Cuma simpan field yang relevan dengan status yang dipilih — sisanya NULL
     if status == "terjawab":
-        category_v, answer_v = category.strip() or None, answer.strip() or None
+        answer_v = answer.strip() or None
         rencana_v = ranah_v = jalur_v = None
     elif status == "diagendakan":
         rencana_v = rencana_pembahasan.strip() or None
-        category_v = answer_v = ranah_v = jalur_v = None
+        answer_v = ranah_v = jalur_v = None
     elif status == "luar_lingkup":
         ranah_v = ranah_divisi.strip() or None
         jalur_v = jalur_disarankan.strip() or None
-        category_v = answer_v = rencana_v = None
+        answer_v = rencana_v = None
     else:
         raise HTTPException(status_code=400, detail="Status tidak valid")
 
@@ -815,11 +832,11 @@ async def faq_review_detail_post(
         await db.execute("""
             INSERT INTO faq_entries
                 (status, category, question_public, answer, rencana_pembahasan,
-                 ranah_divisi, jalur_disarankan, source_submission_id, updated_by)
-            VALUES (?,?,?,?,?,?,?,?,?)
+                 ranah_divisi, jalur_disarankan, catatan_konteks, source_submission_id, updated_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
         """, (
             status, category_v, question_public.strip(), answer_v, rencana_v,
-            ranah_v, jalur_v, submission_id, reviewer_id
+            ranah_v, jalur_v, catatan_v, submission_id, reviewer_id
         ))
         await db.execute(
             "UPDATE faq_submissions SET status = 'processed' WHERE id = ?",
