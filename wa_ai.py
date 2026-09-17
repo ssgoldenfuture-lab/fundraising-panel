@@ -552,21 +552,23 @@ def _call_gemini(question: str, snap: dict) -> str:
 # ── Prompts khusus untuk analisis konten ──────────────────────────────────────
 
 _PROMPT_COPYWRITING = """\
-Kamu adalah copywriter senior yang paham psikologi donasi Islam di Indonesia.
-Analisis teks broadcast berikut dari sudut pandang efektivitas fundraising.
+Kamu adalah copywriter berpengalaman yang paham fundraising donasi Islam di Indonesia.
+Nilai teks broadcast ini dengan *jujur dan tegas* — kalau jelek, bilang jelek. Kalau bagus, bilang bagus.
+JANGAN diplomatis atau basa-basi. Penerima penilaian ini butuh feedback yang actionable, bukan pujian kosong.
 
-Evaluasi berdasarkan:
-1. *Hook* — 3 detik pertama: apakah menarik perhatian?
-2. *Urgensi & emosi* — apakah ada trigger emosional yang kuat?
-3. *Kejelasan program* — apakah nama program dan penggunaan donasi jelas?
-4. *CTA (Call-to-Action)* — apakah ada ajakan yang konkret?
-5. *Panjang & format* — cocok untuk WA blast? Terlalu panjang/pendek?
-6. *Skor keseluruhan* — 1-10
+Evaluasi tiap aspek ini:
+1. ❖ *Hook* — 3 detik pertama: nyantol atau langsung diskip?
+2. ❖ *Urgensi & emosi* — ada trigger yang bikin orang pengen langsung donasi, atau datar aja?
+3. ❖ *Kejelasan program* — donatur langsung ngerti uangnya buat apa?
+4. ❖ *CTA* — ajakan-nya konkret dan mudah dieksekusi, atau nggantung?
+5. ❖ *Panjang & format* — WA-friendly atau kebanyakan sampai malas baca?
+6. ⭐ *Skor akhir* — berikan angka 1-10 beserta verdict singkat (contoh: "6/10 — potensial tapi belum kena")
 
-Format jawaban: singkat, pakai poin, kasih contoh perbaikan kalau perlu.
-Bahasa: santai tapi substantif. Max 10 baris WA.
+TEMUAN UTAMA dulu (1-2 kalimat yang paling krusial), baru detail.
+Kalau ada bagian yang perlu ditulis ulang, kasih contoh konkretnya langsung.
+Max 12 baris WA. Bahasa santai tapi blak-blakan.
 
-DATA PROGRAM GFI (untuk referensi perbandingan):
+DATA PROGRAM GFI (untuk konteks perbandingan performa):
 {program_ctx}
 
 TEKS YANG DINILAI:
@@ -589,19 +591,20 @@ DATA PERFORMA:
 """
 
 _PROMPT_VISUAL = """\
-Kamu adalah konsultan konten visual untuk fundraising Islam di Indonesia.
-Analisis gambar broadcast berikut.
+Kamu adalah penilai konten visual untuk fundraising Islam di Indonesia.
+Analisis gambar ini dengan *jujur total* — kalau desainnya lemah, bilang lemah. Kalau kuat, bilang kuat.
+Tujuannya bukan menyenangkan hati pembuat, tapi bantu mereka bikin konten yang lebih efektif.
 
-Evaluasi:
-1. *Keterbacaan* — teks di gambar mudah dibaca di layar HP?
-2. *Kejelasan program* — nama program terlihat jelas?
-3. *Emosi visual* — gambar membangkitkan rasa empati/urgensi?
-4. *CTA visual* — ada tombol/nomor/QR yang jelas?
-5. *Tone* — sesuai untuk program {program_hint}?
-6. *Skor* — 1-10, singkat
+Evaluasi tiap aspek:
+1. ❖ *Keterbacaan* — kalau dilihat di layar HP kecil, teksnya bisa dibaca dengan nyaman?
+2. ❖ *Kejelasan program* — dalam 3 detik, orang langsung tahu ini program apa?
+3. ❖ *Emosi visual* — gambar/foto-nya bikin orang tergerak, atau biasa-biasa aja?
+4. ❖ *CTA visual* — ada elemen yang jelas mengajak action (nomor, QR, tombol)?
+5. ❖ *Tone & kesesuaian* — cocok untuk program {program_hint}?
+6. ⭐ *Skor akhir* — angka 1-10 + verdict 1 kalimat (contoh: "5/10 — terlalu penuh, CTA tenggelam")
 
-Kasih 2-3 saran konkret yang bisa langsung diaplikasikan.
-Bahasa santai, max 10 baris WA.
+Kasih 2-3 saran perbaikan yang *spesifik dan langsung bisa dieksekusi* (bukan saran umum).
+Max 12 baris WA. Blak-blakan tapi konstruktif.
 """
 
 
