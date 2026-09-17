@@ -192,9 +192,9 @@ async def lifespan(app: FastAPI):
         # Sync pertama saat startup — jalankan di background agar port langsung tersedia
         asyncio.create_task(_startup_sync())
 
-        # Sync tiap 10 menit
+        # Sync tiap 10 menit — max_instances=1: jangan mulai baru kalau masih jalan
         scheduler.add_job(sync_from_sheets, "interval", minutes=10, id="sheets_sync",
-                          misfire_grace_time=120)
+                          misfire_grace_time=120, max_instances=1)
 
         # Laporan WA harian — default jam 07:00 WIB, bisa diubah dari settings
         wa_hour = int(os.getenv("WA_REPORT_HOUR", "7"))

@@ -1,7 +1,7 @@
 """
 sheets.py — Sync dari SEMUA sumber aktif di tabel sheet_sources
 """
-import os, re, hashlib, logging, aiosqlite, httpx
+import os, re, hashlib, logging, asyncio, aiosqlite, httpx
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -190,6 +190,7 @@ async def _sync_multi_tab(source: dict, api_key: str) -> dict:
                     resp = await client.get(url)
                     resp.raise_for_status()
                     data = resp.json()
+                await asyncio.sleep(1.5)  # hindari rate limit Google Sheets API (60 req/min)
             except Exception as e:
                 log.warning(f"[MultiSync] Tab '{tab}' error: {e}")
                 continue
