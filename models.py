@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS faq_entries (
     rencana_pembahasan    TEXT,
     ranah_divisi          TEXT,
     jalur_disarankan      TEXT,
+    catatan_konteks       TEXT,
     source_submission_id  INTEGER REFERENCES faq_submissions(id),
     updated_by            INTEGER REFERENCES users(id),
     updated_at            TEXT    DEFAULT (datetime('now'))
