@@ -32,6 +32,12 @@ _MODELS = [
     "gemini-flash-latest",        # kadang 503 tapi lebih kuat
 ]
 
+# Model yang support multimodal (gambar/video) — pakai Flash 2.0
+_MODELS_VISION = [
+    "gemini-2.0-flash",           # ✅ multimodal, gratis rate limit
+    "gemini-1.5-flash",           # fallback
+]
+
 _SYSTEM_TEMPLATE = """\
 Kamu adalah asisten data internal tim fundraising Golden Future Indonesia (GFI). \
 Nama kamu bisa dipanggil "GFI Bot" atau sekedar dibalas santai.
@@ -541,6 +547,213 @@ def _call_gemini(question: str, snap: dict) -> str:
                 break
 
     raise RuntimeError(f"Semua model Gemini gagal. Last error: {last_error}")
+
+
+# ── Prompts khusus untuk analisis konten ──────────────────────────────────────
+
+_PROMPT_COPYWRITING = """\
+Kamu adalah copywriter senior yang paham psikologi donasi Islam di Indonesia.
+Analisis teks broadcast berikut dari sudut pandang efektivitas fundraising.
+
+Evaluasi berdasarkan:
+1. *Hook* — 3 detik pertama: apakah menarik perhatian?
+2. *Urgensi & emosi* — apakah ada trigger emosional yang kuat?
+3. *Kejelasan program* — apakah nama program dan penggunaan donasi jelas?
+4. *CTA (Call-to-Action)* — apakah ada ajakan yang konkret?
+5. *Panjang & format* — cocok untuk WA blast? Terlalu panjang/pendek?
+6. *Skor keseluruhan* — 1-10
+
+Format jawaban: singkat, pakai poin, kasih contoh perbaikan kalau perlu.
+Bahasa: santai tapi substantif. Max 10 baris WA.
+
+DATA PROGRAM GFI (untuk referensi perbandingan):
+{program_ctx}
+
+TEKS YANG DINILAI:
+{copy_text}
+"""
+
+_PROMPT_BLAST_REKOMEN = """\
+Kamu adalah analis fundraising GFI. Berikan rekomendasi program dan waktu blast
+berdasarkan data performa historis.
+
+Jawab:
+1. Program mana yang paling worth di-blast SEKARANG (dan kenapa)
+2. Waktu terbaik berdasarkan tren hari/bulan
+3. Satu tips copywriting spesifik untuk program tersebut
+
+Max 8 baris WA. Pakai angka dari data.
+
+DATA PERFORMA:
+{program_ctx}
+"""
+
+_PROMPT_VISUAL = """\
+Kamu adalah konsultan konten visual untuk fundraising Islam di Indonesia.
+Analisis gambar broadcast berikut.
+
+Evaluasi:
+1. *Keterbacaan* — teks di gambar mudah dibaca di layar HP?
+2. *Kejelasan program* — nama program terlihat jelas?
+3. *Emosi visual* — gambar membangkitkan rasa empati/urgensi?
+4. *CTA visual* — ada tombol/nomor/QR yang jelas?
+5. *Tone* — sesuai untuk program {program_hint}?
+6. *Skor* — 1-10, singkat
+
+Kasih 2-3 saran konkret yang bisa langsung diaplikasikan.
+Bahasa santai, max 10 baris WA.
+"""
+
+
+def _call_gemini_vision(image_b64: str, mime_type: str, prompt: str) -> str:
+    """
+    Kirim gambar + prompt ke Gemini multimodal.
+    image_b64: base64 string dari gambar
+    mime_type: 'image/jpeg', 'image/png', dll
+    """
+    if not GOOGLE_API_KEY:
+        return "❌ Konfigurasi AI belum selesai."
+
+    payload = {
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"inline_data": {"mime_type": mime_type, "data": image_b64}},
+                {"text": prompt}
+            ]
+        }],
+        "generationConfig": {
+            "maxOutputTokens": 700,
+            "temperature":     0.7,
+        },
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_HARASSMENT",        "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH",       "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ],
+    }
+
+    last_error = None
+    for model in _MODELS_VISION:
+        url = f"{_BASE_URL}/{model}:generateContent?key={GOOGLE_API_KEY}"
+        try:
+            r = requests.post(url, json=payload, timeout=20)
+            if r.status_code == 503:
+                import time; time.sleep(1.5)
+                continue
+            r.raise_for_status()
+            result = r.json()
+            text = result["candidates"][0]["content"]["parts"][0]["text"]
+            log.info(f"Gemini Vision OK via {model}")
+            return text.strip()
+        except Exception as e:
+            last_error = str(e)
+            log.warning(f"Gemini Vision error ({model}): {e}")
+            continue
+
+    raise RuntimeError(f"Semua model vision gagal: {last_error}")
+
+
+async def analyze_copywriting(copy_text: str, aggregates, home_agg, berdonasi_db=None) -> str:
+    """
+    Analisis copywriting teks broadcast.
+    Dipanggil dari wa_webhook saat intent = 'nilai_copy'.
+    """
+    import asyncio
+    try:
+        snap = await _get_dashboard_snapshot(aggregates, home_agg, berdonasi_db)
+        program_ctx = json.dumps(
+            snap.get("analisis_program_db", {}).get("top_by_efisiensi_bulanan", [])[:8],
+            ensure_ascii=False
+        )
+    except Exception:
+        program_ctx = "(data program tidak tersedia)"
+
+    prompt = _PROMPT_COPYWRITING.format(
+        program_ctx=program_ctx,
+        copy_text=copy_text
+    )
+    try:
+        loop = asyncio.get_event_loop()
+        reply = await loop.run_in_executor(
+            None, lambda: _call_gemini(prompt, {})
+        )
+        return reply
+    except Exception as e:
+        log.error(f"analyze_copywriting error: {e}")
+        return "Maaf, gagal analisis copywriting. Coba lagi. 🙏"
+
+
+async def recommend_blast(aggregates, home_agg, berdonasi_db=None) -> str:
+    """
+    Rekomendasi program blast berdasarkan data performa historis.
+    Dipanggil dari wa_webhook saat intent = 'rekomen_blast'.
+    """
+    import asyncio
+    try:
+        snap = await _get_dashboard_snapshot(aggregates, home_agg, berdonasi_db)
+        program_ctx = json.dumps({
+            "top_efisiensi": snap.get("analisis_program_db", {}).get("top_by_efisiensi_bulanan", [])[:10],
+            "ranking_konten": snap.get("ranking_konten_terbaik", [])[:6],
+            "konten_mendatang": snap.get("konten_mendatang", [])[:5],
+            "bulan_ini": snap.get("crm_bulan_ini", {}),
+        }, ensure_ascii=False)
+    except Exception:
+        program_ctx = "(data tidak tersedia)"
+
+    prompt = _PROMPT_BLAST_REKOMEN.format(program_ctx=program_ctx)
+    try:
+        loop = asyncio.get_event_loop()
+        reply = await loop.run_in_executor(
+            None, lambda: _call_gemini(prompt, {})
+        )
+        return reply
+    except Exception as e:
+        log.error(f"recommend_blast error: {e}")
+        return "Maaf, gagal generate rekomendasi. 🙏"
+
+
+async def analyze_content_visual(
+    image_b64: str, mime_type: str, caption: str,
+    aggregates, home_agg, berdonasi_db=None
+) -> str:
+    """
+    Analisis gambar konten broadcast secara visual + copywriting caption.
+    Dipanggil dari wa_webhook saat ada pesan bergambar.
+    """
+    import asyncio
+    # Coba deteksi nama program dari caption
+    program_hint = caption or "umum"
+    try:
+        snap = await _get_dashboard_snapshot(aggregates, home_agg, berdonasi_db)
+        top_programs = [
+            p["program"]
+            for p in snap.get("analisis_program_db", {}).get("top_by_efisiensi_bulanan", [])[:5]
+        ]
+        # Deteksi program dari caption
+        for prog in top_programs:
+            if prog.lower() in caption.lower():
+                program_hint = prog
+                break
+    except Exception:
+        pass
+
+    # Bangun prompt gabungan visual + caption
+    full_prompt = _PROMPT_VISUAL.format(program_hint=program_hint)
+    if caption:
+        full_prompt += f"\n\nCaption WA yang menyertai gambar:\n\"{caption}\""
+        full_prompt += "\n\nNilai juga caption-nya: hook, urgensi, CTA, panjang."
+
+    try:
+        loop = asyncio.get_event_loop()
+        reply = await loop.run_in_executor(
+            None, lambda: _call_gemini_vision(image_b64, mime_type, full_prompt)
+        )
+        return reply
+    except Exception as e:
+        log.error(f"analyze_content_visual error: {e}")
+        return "Maaf, gagal analisis gambar. Pastikan gambar terkirim dengan benar. 🙏"
 
 
 async def _get_cs_targeted_detail(question: str, aggregates) -> dict:

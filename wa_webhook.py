@@ -115,6 +115,9 @@ _DATA_KEYWORDS = [
     "konten", "blast", "blasting", "jadwal", "kalender",
     "besok", "minggu", "hari ini", "narasii", "narasi",
     "efektif", "terbaik", "hasil blast", "performa konten",
+    # Keyword analisis konten / copywriting (trigger baru)
+    "nilai", "review", "copywriting", "copy", "broadcast",
+    "rekomen", "rekomendasi", "saranin", "saran blast",
 ]
 
 
@@ -196,6 +199,14 @@ def _detect_intent(text: str) -> str:
     if t.startswith("!belajar"):
         return "belajar"
 
+    # Analisis copywriting
+    if t.startswith("!nilai") or t.startswith("!review"):
+        return "nilai_copy"
+
+    # Rekomendasi blast
+    if t.startswith("!rekomen") or t.startswith("!saran"):
+        return "rekomen_blast"
+
     # Perintah eksplisit (kaku)
     if t.startswith("!laporan"):
         return "laporan_harian"
@@ -213,6 +224,63 @@ def _detect_intent(text: str) -> str:
     # Semua pertanyaan lain (bahkan yang ada kata "ranking", "hari ini") -> Gemini AI
     return "unknown"
 
+
+def _extract_image_from_payload(payload: dict) -> tuple[str | None, str]:
+    """
+    Ekstrak gambar dari payload Replai.
+    Return: (base64_string_atau_None, mime_type)
+    Replai bisa kirim: media_url, image_url, media_base64, file_url
+    """
+    import base64, urllib.request
+
+    mime_type = "image/jpeg"  # default
+
+    # Cek media_type kalau ada
+    mt = payload.get("media_type") or payload.get("mime_type") or ""
+    if mt and mt.startswith("image"):
+        mime_type = mt
+
+    # Prioritas 1: sudah base64
+    b64 = payload.get("media_base64") or payload.get("image_base64")
+    if b64:
+        return b64, mime_type
+
+    # Prioritas 2: URL → download → konversi ke base64
+    url = (payload.get("media_url") or payload.get("image_url")
+           or payload.get("file_url") or payload.get("url"))
+    if url and url.startswith("http"):
+        try:
+            with urllib.request.urlopen(url, timeout=10) as resp:
+                data = resp.read()
+                # Deteksi mime dari header kalau ada
+                ct = resp.headers.get("Content-Type", "")
+                if ct.startswith("image"):
+                    mime_type = ct.split(";")[0].strip()
+            return base64.b64encode(data).decode(), mime_type
+        except Exception as e:
+            log.warning(f"Gagal download image dari {url}: {e}")
+
+    return None, mime_type
+
+
+def _is_image_message(payload: dict) -> bool:
+    """Cek apakah payload mengandung gambar."""
+    msg_type = payload.get("message_type") or payload.get("type_message") or ""
+    if msg_type.lower() in ("image", "imageMessage", "photo"):
+        return True
+    # Cek field media
+    has_media = bool(
+        payload.get("media_url") or payload.get("image_url")
+        or payload.get("media_base64") or payload.get("image_base64")
+        or payload.get("file_url")
+    )
+    # Pastikan ada mime image (hindari false positive video/document)
+    mt = payload.get("media_type") or payload.get("mime_type") or ""
+    if has_media and (not mt or mt.startswith("image")):
+        return True
+    return False
+
+
 import wa_ai      # Gemini AI agent
 import knowledge  # Self-learning knowledge base
 
@@ -222,20 +290,39 @@ async def handle_webhook(payload: dict, aggregates, wa_bot, home_agg, berdonasi_
     Proses payload webhook Replai.
     - Fast-path: intent jelas -> query DB langsung -> format jawaban
     - AI path: pertanyaan bebas -> Gemini + data real -> jawaban natural
+    - Image path: ada gambar -> analisis visual konten
+    - Copy path: !nilai [teks] -> analisis copywriting
+    - Rekomen path: !rekomen -> rekomendasi blast
     """
     if not _should_respond(payload):
         log.info(f"Webhook ignored: type={payload.get('type')} from={payload.get('from')}")
         return None
 
-    raw_text = payload.get("message", "")
+    raw_text = payload.get("message", "") or ""
     text     = _clean_text(raw_text)
     sender   = payload.get("from", "")
     is_grp   = payload.get("type") == "group"
     intent   = _detect_intent(text)
 
-    log.info(f"WA webhook: intent={intent} clean_text='{text}' from={sender} group={is_grp}")
+    log.info(f"WA webhook: intent={intent} clean_text='{text[:80]}' from={sender} group={is_grp}")
 
     try:
+        # ── Cek dulu: ada gambar? Prioritas tertinggi kalau ada media ──
+        if _is_image_message(payload):
+            log.info("Gambar terdeteksi — mode analisis visual konten")
+            image_b64, mime_type = _extract_image_from_payload(payload)
+            if image_b64:
+                caption = text  # caption = teks yang menyertai gambar
+                return await wa_ai.analyze_content_visual(
+                    image_b64, mime_type, caption,
+                    aggregates, home_agg, berdonasi_db
+                )
+            else:
+                return (
+                    "Hmm, gambarnya tidak bisa diakses. Coba kirim ulang atau "
+                    "pastikan gambar terkirim sempurna dulu ya. 🙏"
+                )
+
         if intent == "belajar":
             # Update knowledge base
             key, val, cat = knowledge.parse_learn_command(text)
@@ -245,11 +332,34 @@ async def handle_webhook(payload: dict, aggregates, wa_bot, home_agg, berdonasi_
             else:
                 return "Format: *!belajar: KODE = Penjelasan*\nContoh: !belajar: KEI = Kemiskinan Indonesia"
 
+        elif intent == "nilai_copy":
+            # Analisis copywriting
+            # Strip command: "!nilai " atau "!review " dari awal
+            copy_text = text
+            for prefix in ("!nilai ", "!review ", "!nilai:", "!review:"):
+                if copy_text.lower().startswith(prefix.lower()):
+                    copy_text = copy_text[len(prefix):].strip()
+                    break
+            if not copy_text or len(copy_text) < 10:
+                return (
+                    "Kirim teks broadcast-nya setelah perintah ya! •\n"
+                    "Contoh: `!nilai Bismillah, mari bantu anak yatim...`"
+                )
+            return await wa_ai.analyze_copywriting(
+                copy_text, aggregates, home_agg, berdonasi_db
+            )
+
+        elif intent == "rekomen_blast":
+            # Rekomendasi program blast
+            return await wa_ai.recommend_blast(aggregates, home_agg, berdonasi_db)
+
         elif intent == "help":
             # Tag tanpa pesan / pesan kosong -> AI perkenalkan diri dengan data
             return await wa_ai.answer(
                 "Kamu baru di-tag. Perkenalkan dirimu secara singkat dan sebutkan "
-                "apa saja yang bisa kamu bantu berdasarkan data fundraising.",
+                "apa saja yang bisa kamu bantu berdasarkan data fundraising. "
+                "Sebutin juga fitur baru: !nilai [teks] untuk analisis copywriting, "
+                "!rekomen untuk rekomendasi blast, dan kirim gambar untuk analisis visual konten.",
                 aggregates, home_agg, berdonasi_db
             )
 
@@ -303,7 +413,7 @@ async def handle_webhook(payload: dict, aggregates, wa_bot, home_agg, berdonasi_
 
         else:
             # Pertanyaan bebas -> AI Agent dengan data real
-            log.info(f"Routing ke Gemini AI: '{text}'")
+            log.info(f"Routing ke Gemini AI: '{text[:60]}'")
             return await wa_ai.answer(text, aggregates, home_agg, berdonasi_db)
 
     except Exception as e:
