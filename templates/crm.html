@@ -47,6 +47,8 @@
 .yr-chip{border:1px solid var(--line);border-radius:20px;padding:3px 12px;font-size:12px;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--ink-soft);transition:all .15s;}
 .yr-chip:hover{border-color:var(--accent);color:var(--accent);}
 .yr-chip-on{background:var(--accent);color:#fff;border-color:var(--accent);}
+.pill-up{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;}
+.pill-dn{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;}
 </style>
 
 <!-- Narasi -->
@@ -108,7 +110,15 @@
       <td><strong>{{ cs.cs }}</strong></td>
       <td class="num">{{ cs.total | rp }}</td>
       <td class="num">{{ cs.jumlah }}</td>
-      <td><span class="pill">–</span></td>
+      <td>
+        {% if cs.tren == 'up' %}
+          <span class="pill pill-up" title="+{{ cs.tren_pct }}% vs periode sebelumnya">↑ {{ cs.tren_pct }}%</span>
+        {% elif cs.tren == 'dn' %}
+          <span class="pill pill-dn" title="{{ cs.tren_pct }}% vs periode sebelumnya">↓ {{ cs.tren_pct }}%</span>
+        {% else %}
+          <span class="pill">–</span>
+        {% endif %}
+      </td>
       <td>{{ cs.program_favorit }}</td>
     </tr>
     {% endfor %}
@@ -252,7 +262,10 @@ function setPreset(p){
   const iso   = d=>d.toISOString().slice(0,10);
   let from, to = iso(today);
   if(p==='all')   { from='2020-01-01'; }
-  else if(p==='last3'){ const d=new Date(today); d.setMonth(d.getMonth()-3); from=iso(d); }
+  else if(p==='last3'){
+    // Gunakan 90 hari ke belakang — hindari edge case setMonth di bulan berbeda
+    const d=new Date(today); d.setDate(d.getDate()-90); from=iso(d);
+  }
   else if(p==='last1'){ from=iso(new Date(today.getFullYear(),today.getMonth(),1)); }
   else { from=to; }
   const gran = document.getElementById('granularity').value;

@@ -122,6 +122,7 @@ async def tren_donasi(date_from: str, date_to: str, granularity: str = "auto",
 
 async def ranking_cs(date_from: str, date_to: str,
                      years: list[int] | None = None) -> list[dict]:
+    from datetime import date as _date, timedelta
     date_clause, dc_params = _date_clause(date_from, date_to, years)
     rows = await _fetch(f"""
         SELECT cs, SUM(nominal) AS total, COUNT(*) AS jumlah
@@ -152,8 +153,42 @@ async def ranking_cs(date_from: str, date_to: str,
             fav_map[cs] = f["kode_program"]
             seen_cs.add(cs)
 
+    # ── Hitung tren: bandingkan periode saat ini vs periode sebelumnya (panjang sama) ──
+    prev_map: dict[str, int] = {}
+    if not years:  # tren hanya masuk akal untuk date-range, bukan year-filter
+        try:
+            d0 = _date.fromisoformat(date_from)
+            d1 = _date.fromisoformat(date_to)
+            period_days = (d1 - d0).days
+            prev_d1 = d0 - timedelta(days=1)
+            prev_d0 = prev_d1 - timedelta(days=period_days)
+            prev_rows = await _fetch("""
+                SELECT cs, SUM(nominal) AS total
+                FROM donations
+                WHERE tanggal BETWEEN ? AND ?
+                  AND is_institusional = 0 AND cs != ''
+                GROUP BY cs
+            """, (prev_d0.isoformat(), prev_d1.isoformat()))
+            prev_map = {r["cs"]: int(r["total"] or 0) for r in prev_rows}
+        except Exception:
+            pass
+
     for r in rows:
         r["program_favorit"] = fav_map.get(r["cs"], "-")
+        curr  = int(r.get("total") or 0)
+        prev  = prev_map.get(r["cs"], 0)
+        if years or prev == 0:
+            r["tren"] = "neu"
+            r["tren_pct"] = 0
+        else:
+            delta_pct = round((curr - prev) / prev * 100)
+            r["tren_pct"] = delta_pct
+            if delta_pct >= 5:
+                r["tren"] = "up"
+            elif delta_pct <= -5:
+                r["tren"] = "dn"
+            else:
+                r["tren"] = "neu"
 
     return rows
 
