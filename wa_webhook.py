@@ -118,6 +118,8 @@ _DATA_KEYWORDS = [
     # Keyword analisis konten / copywriting (trigger baru)
     "nilai", "review", "copywriting", "copy", "broadcast",
     "rekomen", "rekomendasi", "saranin", "saran blast",
+    # Keyword analisis media
+    "analisis", "analisa", "video", "vidio", "gambar", "foto", "konten visual",
 ]
 
 
@@ -216,6 +218,14 @@ def _detect_intent(text: str) -> str:
         return "donasi_hari_ini"
     if t.startswith("!alert"):
         return "alert"
+
+    # Analisis video/gambar — user minta analisis tapi media tidak ada di payload
+    # (Replai tidak forward video binary untuk group message)
+    _video_kw = ("analisis video", "analisis vidio", "analisa video", "analisa vidio",
+                 "nilai video", "nilai vidio", "review video", "review vidio",
+                 "cek video", "analisis film", "analisis konten video")
+    if any(kw in t for kw in _video_kw):
+        return "analisis_video_teks"
 
     # Pesan terlalu pendek / cuma mention -> kasih petunjuk via Gemini
     if not t.strip() or len(t.strip()) <= 3:
@@ -411,6 +421,21 @@ async def handle_webhook(payload: dict, aggregates, wa_bot, home_agg, berdonasi_
             else:
                 return "Format: *!belajar: KODE = Penjelasan*\nContoh: !belajar: KEI = Kemiskinan Indonesia"
 
+        elif intent == "analisis_video_teks":
+            # User minta analisis video tapi Replai tidak forward media binary di group message
+            return (
+                "📹 *Analisis Video*\n\n"
+                "Sayangnya di pesan grup, video/gambar tidak bisa langsung diteruskan ke saya "
+                "oleh sistem — yang saya terima hanya teks captionnya saja.\n\n"
+                "Ada 2 cara yang bisa jalan:\n\n"
+                "1️⃣ *Kirim video langsung ke DM bot ini* "
+                "(nomor WA bot) dengan caption 'analisis video ini' — "
+                "di DM, media bisa langsung diproses.\n\n"
+                "2️⃣ *Upload video ke Google Drive / link publik*, "
+                "lalu share URL-nya di sini — saya bisa download dan analisis dari sana.\n\n"
+                "Untuk *gambar/foto* broadcast juga sama caranya ya. 🙏"
+            )
+
         elif intent == "nilai_copy":
             # Analisis copywriting
             # Strip command: "!nilai " atau "!review " dari awal
@@ -437,8 +462,9 @@ async def handle_webhook(payload: dict, aggregates, wa_bot, home_agg, berdonasi_
             return await wa_ai.answer(
                 "Kamu baru di-tag. Perkenalkan dirimu secara singkat dan sebutkan "
                 "apa saja yang bisa kamu bantu berdasarkan data fundraising. "
-                "Sebutin juga fitur baru: !nilai [teks] untuk analisis copywriting, "
-                "!rekomen untuk rekomendasi blast, dan kirim gambar untuk analisis visual konten.",
+                "Sebutin juga fitur: !nilai [teks] untuk analisis copywriting, "
+                "!rekomen untuk rekomendasi blast, kirim gambar (via DM) untuk analisis visual konten, "
+                "dan kirim video (via DM) untuk analisis video konten.",
                 aggregates, home_agg, berdonasi_db
             )
 
