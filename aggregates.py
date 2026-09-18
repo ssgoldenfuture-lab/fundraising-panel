@@ -8,9 +8,20 @@ from pathlib import Path
 DB_PATH = Path(__file__).parent / "fundraising.db"
 
 
-async def _fetch(sql: str, params=()) -> list[dict]:
-    async with aiosqlite.connect(DB_PATH, timeout=10) as db:
+async def init_db() -> None:
+    """
+    Inisialisasi DB sekali saat startup: set WAL mode.
+    PRAGMA journal_mode=WAL adalah write operation — jangan dipanggil tiap query.
+    """
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("PRAGMA synchronous=NORMAL")   # lebih cepat, masih aman
+        await db.commit()
+
+
+async def _fetch(sql: str, params=()) -> list[dict]:
+    # timeout=30 — cukup untuk menunggu satu tab sync selesai commit
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(sql, params) as cur:
             rows = await cur.fetchall()

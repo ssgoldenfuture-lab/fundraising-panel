@@ -83,6 +83,7 @@ async def _sync_one(source: dict, api_key: str) -> dict:
     log.info(f"[Sync] Source #{src_id} '{source['label']}': {len(rows)} rows")
 
     upserted = 0
+    BATCH = 500  # commit tiap N baris agar lock tidak terlalu lama
     async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         exclusions = await _load_exclusions(db)
@@ -122,7 +123,11 @@ async def _sync_one(source: dict, api_key: str) -> dict:
             ))
             upserted += 1
 
-        await db.commit()
+            # Commit per-batch agar write-lock tidak terlalu lama
+            if upserted % BATCH == 0:
+                await db.commit()
+
+        await db.commit()  # commit sisa baris
 
         # Update last_synced_at dan row count
         await db.execute("""
@@ -198,6 +203,7 @@ async def _sync_multi_tab(source: dict, api_key: str) -> dict:
             rows = data.get("values", [])
             total_fetched += len(rows)
             cs_from_tab = tab.upper()  # gunakan nama tab sebagai CS
+            tab_upserted = 0
 
             for r in rows:
                 def col(i, default=""):
@@ -236,9 +242,15 @@ async def _sync_multi_tab(source: dict, api_key: str) -> dict:
                     nominal, col(6), col(7), cs, col(13),
                     col(11), col(10), is_inst, year
                 ))
-                total_upserted += 1
+                tab_upserted += 1
 
-        await db.commit()
+            # ★ COMMIT PER TAB — write-lock dilepas setelah tiap tab selesai
+            # (bukan setelah semua tab — itu yang bikin lock 3-8 menit!)
+            await db.commit()
+            total_upserted += tab_upserted
+            log.info(f"[MultiSync] Tab '{tab}': {tab_upserted} rows committed")
+
+        # Update stats setelah semua tab selesai
         await db.execute("""
             UPDATE sheet_sources
             SET last_synced_at = datetime('now'), last_row_count = ?
