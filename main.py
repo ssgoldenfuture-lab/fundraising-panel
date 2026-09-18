@@ -1,5 +1,5 @@
-"""
-main.py â€” FastAPI app: auth, routing, scheduled sync
+﻿"""
+main.py Ã¢â‚¬â€ FastAPI app: auth, routing, scheduled sync
 """
 import os, logging, aiosqlite
 from contextlib import asynccontextmanager
@@ -29,7 +29,7 @@ import home_aggregates as hagg
 import wa_bot
 import wa_webhook
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s â€” %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s Ã¢â‚¬â€ %(message)s")
 log = logging.getLogger("main")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "changeme-insecure")
@@ -37,11 +37,11 @@ _signer    = URLSafeTimedSerializer(SECRET_KEY)
 COOKIE_NAME = "fr_session"
 BASE_DIR   = Path(__file__).parent
 
-# â”€â”€ Scheduler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Scheduler Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 scheduler = AsyncIOScheduler(timezone="Asia/Jakarta")
 
 async def _startup_sync():
-    """Jalankan sync pertama di background — tidak blocking startup port."""
+    """Jalankan sync pertama di background â€” tidak blocking startup port."""
     try:
         await sync_from_sheets()
         log.info("Startup sync selesai")
@@ -54,7 +54,7 @@ async def _ensure_wa_log_table():
     
     Sekaligus enable WAL mode supaya concurrent reads tidak
     memblokir writer (fixes 'database is locked' saat sync berjalan).
-    WAL mode persisten — cukup diset sekali, tidak perlu diulang.
+    WAL mode persisten â€” cukup diset sekali, tidak perlu diulang.
     """
     async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         # WAL mode: concurrent readers + single writer, tidak saling block
@@ -79,7 +79,7 @@ async def _log_wa_broadcast(target: str, message: str, status: str,
     """Catat hasil broadcast WA ke DB.
     
     timeout=30: tunggu hingga 30 detik kalau DB sedang ditulis oleh
-    sync_from_sheets() — jangan langsung crash.
+    sync_from_sheets() â€” jangan langsung crash.
     """
     try:
         async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
@@ -96,7 +96,7 @@ async def _send_wa_report():
     """Job terjadwal: kirim laporan harian ke grup WA."""
     group_id = os.getenv("WA_GROUP_ID", "")
     if not group_id:
-        log.warning("WA_GROUP_ID tidak diset — laporan harian WA dilewati")
+        log.warning("WA_GROUP_ID tidak diset â€” laporan harian WA dilewati")
         return
 
     try:
@@ -159,51 +159,51 @@ async def lifespan(app: FastAPI):
         "autocommit": True,
     }
     ok = await bdb.test_connection()
-    log.info(f"berdonasi MySQL: {'OK' if ok else 'GAGAL — transaksi online tidak tersedia'}")
+    log.info(f"berdonasi MySQL: {'OK' if ok else 'GAGAL â€” transaksi online tidak tersedia'}")
 
-    # ── Scheduler: hanya jalan di 1 worker ────────────────────────────────────
+    # â”€â”€ Scheduler: hanya jalan di 1 worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Uvicorn multi-worker = setiap worker punya lifespan sendiri.
-    # Kalau scheduler jalan di semua worker → 2 sync bersamaan → race condition
+    # Kalau scheduler jalan di semua worker â†’ 2 sync bersamaan â†’ race condition
     # di SQLite (database is locked). Fix: cek apakah ini worker pertama
     # dengan membandingkan PID dengan worker lain via file lock sederhana.
     import asyncio, pathlib
     _scheduler_lock = pathlib.Path("/tmp/gfi_scheduler.lock")
     _is_primary_worker = False
     try:
-        # Tulis PID kita. Kalau file sudah ada dan PID-nya masih hidup → bukan primary.
+        # Tulis PID kita. Kalau file sudah ada dan PID-nya masih hidup â†’ bukan primary.
         import os as _os
         if _scheduler_lock.exists():
             old_pid = int(_scheduler_lock.read_text().strip())
             try:
                 _os.kill(old_pid, 0)  # cek apakah PID masih hidup
-                log.info(f"Scheduler sudah jalan di PID {old_pid} — worker ini skip scheduler")
+                log.info(f"Scheduler sudah jalan di PID {old_pid} â€” worker ini skip scheduler")
             except (ProcessLookupError, PermissionError):
-                # PID lama sudah mati → kita ambil alih
+                # PID lama sudah mati â†’ kita ambil alih
                 _scheduler_lock.write_text(str(_os.getpid()))
                 _is_primary_worker = True
         else:
             _scheduler_lock.write_text(str(_os.getpid()))
             _is_primary_worker = True
     except Exception as e:
-        log.warning(f"Scheduler lock check gagal ({e}) — jalankan scheduler anyway")
+        log.warning(f"Scheduler lock check gagal ({e}) â€” jalankan scheduler anyway")
         _is_primary_worker = True
 
     if _is_primary_worker:
-        # Sync pertama saat startup — jalankan di background agar port langsung tersedia
+        # Sync pertama saat startup â€” jalankan di background agar port langsung tersedia
         asyncio.create_task(_startup_sync())
 
-        # Sync tiap 10 menit — max_instances=1: jangan mulai baru kalau masih jalan
+        # Sync tiap 10 menit â€” max_instances=1: jangan mulai baru kalau masih jalan
         scheduler.add_job(sync_from_sheets, "interval", minutes=10, id="sheets_sync",
                           misfire_grace_time=120, max_instances=1)
 
-        # Laporan WA harian — default jam 07:00 WIB, bisa diubah dari settings
+        # Laporan WA harian â€” default jam 07:00 WIB, bisa diubah dari settings
         wa_hour = int(os.getenv("WA_REPORT_HOUR", "7"))
         scheduler.add_job(_send_wa_report, "cron", hour=wa_hour, minute=0,
                           id="wa_daily_report", misfire_grace_time=3600)
 
         scheduler.start()
-        log.info(f"Scheduler started (primary worker PID={_os.getpid()}) — sync tiap 10 menit + WA report jam {wa_hour}:00")
-    # ─────────────────────────────────────────────────────────────────────────
+        log.info(f"Scheduler started (primary worker PID={_os.getpid()}) â€” sync tiap 10 menit + WA report jam {wa_hour}:00")
+    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     yield
 
@@ -238,7 +238,7 @@ def fmt_num(v):
 
 templates.env.filters["format_num"] = fmt_num
 
-# â”€â”€ Auth helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Auth helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 def make_session(username: str, role: str) -> str:
     return _signer.dumps({"u": username, "r": role})
@@ -267,7 +267,7 @@ def is_faq_reviewer(username: str) -> bool:
 
 templates.env.globals["is_faq_reviewer"] = is_faq_reviewer
 
-# Kategori tetap untuk FAQ — sesuai dokumen "FAQ Fundraising — Golden Future Indonesia"
+# Kategori tetap untuk FAQ â€” sesuai dokumen "FAQ Fundraising â€” Golden Future Indonesia"
 FAQ_CATEGORIES = [
     "A. Terkait Website & Platform Donasi",
     "B. Cara Handle Donatur",
@@ -277,7 +277,7 @@ FAQ_CATEGORIES = [
     "F. Database Donatur",
 ]
 
-# â”€â”€ Date helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Date helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 def default_range() -> tuple[str, str]:
     today = date.today()
@@ -292,7 +292,7 @@ def parse_range(request: Request) -> tuple[str, str]:
         return df, dt
     return default_range()
 
-# â”€â”€ Routes: Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Routes: Auth Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, error: str = ""):
@@ -337,7 +337,7 @@ async def kotak_tanya_post(
         "question_raw": question_raw, "saran": saran,
     }
 
-    # stage="edit" → balik ke form editable apa adanya, tanpa validasi ulang
+    # stage="edit" â†’ balik ke form editable apa adanya, tanpa validasi ulang
     if stage == "edit":
         return templates.TemplateResponse("kotak_tanya.html", {
             "request": request, "sent": "", "error": None, "form": form_values,
@@ -357,19 +357,19 @@ async def kotak_tanya_post(
         })
 
     if stage != "confirmed":
-        # Submit pertama & valid — tampilkan tahap review, belum disimpan ke DB
+        # Submit pertama & valid â€” tampilkan tahap review, belum disimpan ke DB
         return templates.TemplateResponse("kotak_tanya.html", {
             "request": request, "sent": "", "error": None, "form": form_values,
             "stage": "review",
         })
 
-    # stage="confirmed" & valid — baru simpan ke DB
+    # stage="confirmed" & valid â€” baru simpan ke DB
     topik_list = list(topik)
     if topik_other.strip():
         topik_list.append(topik_other.strip())
     topik_value = ", ".join(topik_list)
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute(
             "INSERT INTO faq_submissions (question_raw, topik, saran, status) VALUES (?, ?, ?, ?)",
             (question_raw.strip(), topik_value, saran.strip() or None, "pending")
@@ -379,7 +379,7 @@ async def kotak_tanya_post(
 
 @app.get("/faq", response_class=HTMLResponse)
 async def faq_public_page(request: Request):
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT category, question_public, answer, catatan_konteks FROM faq_entries "
@@ -420,7 +420,7 @@ async def faq_public_page(request: Request):
         "last_updated": last_updated,
     })
 
-# â”€â”€ Routes: Main pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Routes: Main pages Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -473,7 +473,7 @@ async def crm_page(request: Request):
     d0, d1 = parse_range(request)
     gran = request.query_params.get("gran", "auto")
 
-    # Filter tahun — ?years=2023,2024,2025 atau kosong = semua
+    # Filter tahun â€” ?years=2023,2024,2025 atau kosong = semua
     years_raw = request.query_params.get("years", "")
     years: list[int] | None = None
     if years_raw:
@@ -511,7 +511,7 @@ async def donor_page(request: Request):
     donors = await agg.tabel_donatur(search=search, limit=100)
 
     # Load institutional exclusions untuk tampil di halaman ini
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM institutional_exclusion ORDER BY nominal DESC") as cur:
             exclusions = [dict(r) for r in await cur.fetchall()]
@@ -564,7 +564,7 @@ async def faq_entries_list_page(request: Request):
     if not is_faq_reviewer(user["u"]):
         return RedirectResponse("/home")
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT id, status, category, question_public, updated_at FROM faq_entries "
@@ -598,7 +598,7 @@ async def faq_entry_edit_page(request: Request, entry_id: int):
     if not is_faq_reviewer(user["u"]):
         return RedirectResponse("/home")
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT status, category, question_public, answer, rencana_pembahasan, "
@@ -654,7 +654,7 @@ async def faq_entry_edit_post(
     category_v = category.strip() or None
     catatan_v = catatan_konteks.strip() or None
 
-    # Cuma simpan field yang relevan dengan status yang dipilih — sisanya NULL
+    # Cuma simpan field yang relevan dengan status yang dipilih â€” sisanya NULL
     if status == "terjawab":
         answer_v = answer.strip() or None
         rencana_v = ranah_v = jalur_v = None
@@ -668,7 +668,7 @@ async def faq_entry_edit_post(
     else:
         raise HTTPException(status_code=400, detail="Status tidak valid")
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute("""
             UPDATE faq_entries
             SET status = ?, category = ?, question_public = ?, answer = ?,
@@ -691,7 +691,7 @@ async def faq_entry_delete_page(request: Request, entry_id: int):
     if not is_faq_reviewer(user["u"]):
         return RedirectResponse("/home")
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT id, status, category, question_public, answer, rencana_pembahasan, "
@@ -715,7 +715,7 @@ async def faq_entry_delete_post(request: Request, entry_id: int, confirm: str = 
     if not is_faq_reviewer(user["u"]):
         return RedirectResponse("/home")
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT id, status, category, question_public, answer, rencana_pembahasan, "
@@ -733,7 +733,7 @@ async def faq_entry_delete_post(request: Request, entry_id: int, confirm: str = 
             "error": "Kamu harus mencentang konfirmasi dulu sebelum menghapus.",
         })
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute("DELETE FROM faq_entries WHERE id = ?", (entry_id,))
         if row["source_submission_id"]:
             await db.execute(
@@ -752,7 +752,7 @@ async def faq_review_page(request: Request):
     if not is_faq_reviewer(user["u"]):
         return RedirectResponse("/home")
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT id, question_raw, submitted_at FROM faq_submissions "
@@ -772,7 +772,7 @@ async def faq_review_detail_page(request: Request, submission_id: int):
     if not is_faq_reviewer(user["u"]):
         return RedirectResponse("/home")
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT id, question_raw, topik, saran, status, submitted_at FROM faq_submissions WHERE id = ?",
@@ -827,7 +827,7 @@ async def faq_review_detail_post(
         error = "Ranah/Divisi dan Jalur Disarankan wajib diisi untuk status Luar Lingkup."
 
     if error:
-        async with aiosqlite.connect(agg.DB_PATH) as db:
+        async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
                 "SELECT id, question_raw, topik, saran, status, submitted_at FROM faq_submissions WHERE id = ?",
@@ -847,7 +847,7 @@ async def faq_review_detail_post(
     category_v = category.strip() or None
     catatan_v = catatan_konteks.strip() or None
 
-    # Cuma simpan field yang relevan dengan status yang dipilih — sisanya NULL
+    # Cuma simpan field yang relevan dengan status yang dipilih â€” sisanya NULL
     if status == "terjawab":
         answer_v = answer.strip() or None
         rencana_v = ranah_v = jalur_v = None
@@ -861,7 +861,7 @@ async def faq_review_detail_post(
     else:
         raise HTTPException(status_code=400, detail="Status tidak valid")
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute("""
             INSERT INTO faq_entries
                 (status, category, question_public, answer, rencana_pembahasan,
@@ -894,7 +894,7 @@ async def kalender_page(request: Request, window: str = "auto", custom_days: int
     if not user:
         return RedirectResponse("/login")
     try:
-        # window="auto" → konten ke konten, window="N" → N hari manual
+        # window="auto" â†’ konten ke konten, window="N" â†’ N hari manual
         manual_window = None
         if window != "auto":
             try:
@@ -928,7 +928,7 @@ async def kalender_page(request: Request, window: str = "auto", custom_days: int
 
 
 
-# ── API: web analytics tracker ────────────────────────────────────────────────────────────────
+# â”€â”€ API: web analytics tracker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 ALLOWED_ORIGINS = {
     "https://goldenfutureindonesia.org",
@@ -950,7 +950,7 @@ async def track_preflight(request: Request):
 
 @app.post("/api/track")
 async def api_track(request: Request):
-    """Terima pageview/event dari tracker.js — zero-auth, CORS open."""
+    """Terima pageview/event dari tracker.js â€” zero-auth, CORS open."""
     origin = request.headers.get("origin", "")
     cors_origin = origin if origin in ALLOWED_ORIGINS else "*"
     try:
@@ -962,7 +962,7 @@ async def api_track(request: Request):
         log.warning(f"tracker error: {e}")
         return JSONResponse({"ok": False}, status_code=400, headers={"Access-Control-Allow-Origin": cors_origin})
 
-# ── API endpoints (JSON, untuk chart update & modal) ─────────────────────────
+# â”€â”€ API endpoints (JSON, untuk chart update & modal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/api/cs-detail")
 async def api_cs_detail(request: Request, cs: str, date_from: str = "", date_to: str = ""):
@@ -997,7 +997,7 @@ async def api_sync(request: Request):
 
 @app.get("/api/sync-info")
 async def api_sync_info(request: Request):
-    """Info sync terakhir â€” untuk polling badge tanpa reload halaman."""
+    """Info sync terakhir Ã¢â‚¬â€ untuk polling badge tanpa reload halaman."""
     if not get_current_user(request):
         raise HTTPException(401)
     return await agg.last_sync_info()
@@ -1008,7 +1008,7 @@ async def settings_page(request: Request):
     if not user or user.get("r") != "admin":
         return RedirectResponse("/")
 
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM sheet_sources ORDER BY id") as cur:
             sources = [dict(r) for r in await cur.fetchall()]
@@ -1025,7 +1025,7 @@ async def settings_page(request: Request):
         "sync_logs": sync_logs, "total_rows": total_rows,
     })
 
-# â”€â”€ CRUD Sumber Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ CRUD Sumber Data Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 @app.post("/settings/sources/add")
 async def source_add(request: Request,
@@ -1035,13 +1035,13 @@ async def source_add(request: Request,
     user = get_current_user(request)
     if not user or user.get("r") != "admin":
         raise HTTPException(403)
-    # Validasi spreadsheet_id â€” ekstrak dari URL jika penuh
+    # Validasi spreadsheet_id Ã¢â‚¬â€ ekstrak dari URL jika penuh
     import re
     m = re.search(r"/spreadsheets/d/([^/]+)", spreadsheet_id)
     if m:
         spreadsheet_id = m.group(1)
     spreadsheet_id = spreadsheet_id.strip()
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute(
             "INSERT INTO sheet_sources (label, spreadsheet_id, sheet_name) VALUES (?,?,?)",
             (label.strip(), spreadsheet_id, sheet_name.strip())
@@ -1054,7 +1054,7 @@ async def source_toggle(request: Request, source_id: int = Form(...)):
     user = get_current_user(request)
     if not user or user.get("r") != "admin":
         raise HTTPException(403)
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute(
             "UPDATE sheet_sources SET is_active = CASE WHEN is_active=1 THEN 0 ELSE 1 END WHERE id=?",
             (source_id,)
@@ -1067,12 +1067,12 @@ async def source_delete(request: Request, source_id: int = Form(...)):
     user = get_current_user(request)
     if not user or user.get("r") != "admin":
         raise HTTPException(403)
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute("DELETE FROM sheet_sources WHERE id=?", (source_id,))
         await db.commit()
     return RedirectResponse("/settings?ok=deleted", status_code=303)
 
-# â”€â”€ CRUD Donasi Institusional â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ CRUD Donasi Institusional Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 @app.post("/settings/exclusions/add")
 async def exclusion_add(request: Request,
@@ -1083,14 +1083,14 @@ async def exclusion_add(request: Request,
     user = get_current_user(request)
     if not user or user.get("r") != "admin":
         raise HTTPException(403)
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute(
             "INSERT INTO institutional_exclusion (donor_name, tanggal, nominal, note) VALUES (?,?,?,?)",
             (donor_name.strip(), tanggal, nominal, note.strip())
         )
         await db.commit()
     # Re-mark existing donations
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute("""
             UPDATE donations SET is_institusional = 1
             WHERE donor_name LIKE ? AND tanggal = ? AND nominal = ?
@@ -1103,17 +1103,17 @@ async def exclusion_delete(request: Request, exclusion_id: int = Form(...)):
     user = get_current_user(request)
     if not user or user.get("r") != "admin":
         raise HTTPException(403)
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         await db.execute("DELETE FROM institutional_exclusion WHERE id=?", (exclusion_id,))
         await db.commit()
     return RedirectResponse("/settings?ok=exclusion_deleted", status_code=303)
 
 
-# ── WhatsApp Bot routes ────────────────────────────────────────────────────────
+# â”€â”€ WhatsApp Bot routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.post("/webhook/replai")
 async def webhook_replai(request: Request):
-    """Webhook dari Replai.id — dipanggil saat ada pesan masuk."""
+    """Webhook dari Replai.id â€” dipanggil saat ada pesan masuk."""
     try:
         payload = await request.json()
     except Exception:
@@ -1144,7 +1144,7 @@ async def api_wa_test_send(request: Request):
         raise HTTPException(403)
     body    = await request.json()
     phone   = body.get("phone", "").strip()
-    text    = body.get("text", "Halo dari Fundraising GFI! 👋").strip()
+    text    = body.get("text", "Halo dari Fundraising GFI! ðŸ‘‹").strip()
     is_grp  = body.get("is_group", False)
     if not phone:
         return JSONResponse({"ok": False, "error": "phone diperlukan"}, status_code=400)
@@ -1195,7 +1195,7 @@ async def api_wa_groups(request: Request):
 async def api_wa_logs(request: Request, limit: int = 20):
     if not get_current_user(request):
         raise HTTPException(401)
-    async with aiosqlite.connect(agg.DB_PATH) as db:
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT * FROM wa_broadcast_log ORDER BY id DESC LIMIT ?", (limit,)
@@ -1246,3 +1246,4 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 5055))
     uvicorn.run("main:app", host="127.0.0.1", port=port, reload=False)
+
