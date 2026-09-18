@@ -607,12 +607,33 @@ Kasih 2-3 saran perbaikan yang *spesifik dan langsung bisa dieksekusi* (bukan sa
 Max 12 baris WA. Blak-blakan tapi konstruktif.
 """
 
+_PROMPT_VIDEO = """\
+Kamu adalah penilai konten video untuk fundraising Islam di Indonesia.
+Analisis video ini dengan *jujur dan blak-blakan* — kalau lemah, bilang lemah. Kalau bagus, bilang bagus.
+Tujuannya bantu tim bikin video broadcast yang lebih efektif dan menggerakkan hati donatur.
 
-def _call_gemini_vision(image_b64: str, mime_type: str, prompt: str) -> str:
+Evaluasi tiap aspek:
+1. ❖ *Hook 3 detik pertama* — apakah langsung menarik perhatian atau membosankan?
+2. ❖ *Narasi/Pesan utama* — apakah pesan program jelas tersampaikan dari awal sampai akhir?
+3. ❖ *Visual & sinematografi* — kualitas gambar, pencahayaan, framing — cukup profesional?
+4. ❖ *Emosi* — apakah video membangun rasa empati/urgensi yang mendorong orang donasi?
+5. ❖ *Audio* — suara/musik/narasi mendukung pesan atau malah distraksi?
+6. ❖ *CTA & info penting* — apakah nama program, nomor rekening, atau QR terlihat/terdengar jelas?
+7. ❖ *Durasi & pacing* — terlalu panjang? Terlalu cepat? Sesuai untuk {program_hint}?
+8. ⭐ *Skor akhir* — angka 1-10 + verdict 1 kalimat (contoh: "6/10 — emosi kuat tapi CTA tenggelam di akhir")
+
+Kasih 2-3 saran perbaikan *konkret dan langsung bisa dieksekusi*.
+Max 15 baris WA. Blak-blakan tapi konstruktif.
+"""
+
+
+def _call_gemini_media(media_b64: str, mime_type: str, prompt: str,
+                       max_tokens: int = 700) -> str:
     """
-    Kirim gambar + prompt ke Gemini multimodal.
-    image_b64: base64 string dari gambar
-    mime_type: 'image/jpeg', 'image/png', dll
+    Kirim media (gambar atau video) + prompt ke Gemini multimodal.
+    media_b64  : base64 string
+    mime_type  : 'image/jpeg', 'image/png', 'video/mp4', dll
+    max_tokens : lebih tinggi untuk video karena analisis lebih panjang
     """
     if not GOOGLE_API_KEY:
         return "❌ Konfigurasi AI belum selesai."
@@ -621,12 +642,12 @@ def _call_gemini_vision(image_b64: str, mime_type: str, prompt: str) -> str:
         "contents": [{
             "role": "user",
             "parts": [
-                {"inline_data": {"mime_type": mime_type, "data": image_b64}},
+                {"inline_data": {"mime_type": mime_type, "data": media_b64}},
                 {"text": prompt}
             ]
         }],
         "generationConfig": {
-            "maxOutputTokens": 700,
+            "maxOutputTokens": max_tokens,
             "temperature":     0.7,
         },
         "safetySettings": [
@@ -637,25 +658,32 @@ def _call_gemini_vision(image_b64: str, mime_type: str, prompt: str) -> str:
         ],
     }
 
+    # Video butuh timeout lebih lama karena request lebih besar
+    req_timeout = 60 if mime_type.startswith("video") else 20
+
     last_error = None
     for model in _MODELS_VISION:
         url = f"{_BASE_URL}/{model}:generateContent?key={GOOGLE_API_KEY}"
         try:
-            r = requests.post(url, json=payload, timeout=20)
+            r = requests.post(url, json=payload, timeout=req_timeout)
             if r.status_code == 503:
                 import time; time.sleep(1.5)
                 continue
             r.raise_for_status()
             result = r.json()
             text = result["candidates"][0]["content"]["parts"][0]["text"]
-            log.info(f"Gemini Vision OK via {model}")
+            log.info(f"Gemini Media OK via {model} ({mime_type})")
             return text.strip()
         except Exception as e:
             last_error = str(e)
-            log.warning(f"Gemini Vision error ({model}): {e}")
+            log.warning(f"Gemini Media error ({model}): {e}")
             continue
 
     raise RuntimeError(f"Semua model vision gagal: {last_error}")
+
+
+# Backward-compat alias
+_call_gemini_vision = _call_gemini_media
 
 
 async def analyze_copywriting(copy_text: str, aggregates, home_agg, berdonasi_db=None) -> str:
@@ -751,12 +779,52 @@ async def analyze_content_visual(
     try:
         loop = asyncio.get_event_loop()
         reply = await loop.run_in_executor(
-            None, lambda: _call_gemini_vision(image_b64, mime_type, full_prompt)
+            None, lambda: _call_gemini_media(image_b64, mime_type, full_prompt)
         )
         return reply
     except Exception as e:
         log.error(f"analyze_content_visual error: {e}")
         return "Maaf, gagal analisis gambar. Pastikan gambar terkirim dengan benar. 🙏"
+
+
+async def analyze_content_video(
+    video_b64: str, mime_type: str, caption: str,
+    aggregates, home_agg, berdonasi_db=None
+) -> str:
+    """
+    Analisis video konten broadcast.
+    Dipanggil dari wa_webhook saat ada pesan video.
+    """
+    import asyncio
+    program_hint = caption or "umum"
+    try:
+        snap = await _get_dashboard_snapshot(aggregates, home_agg, berdonasi_db)
+        top_programs = [
+            p["program"]
+            for p in snap.get("analisis_program_db", {}).get("top_by_efisiensi_bulanan", [])[:5]
+        ]
+        for prog in top_programs:
+            if prog.lower() in caption.lower():
+                program_hint = prog
+                break
+    except Exception:
+        pass
+
+    full_prompt = _PROMPT_VIDEO.format(program_hint=program_hint)
+    if caption:
+        full_prompt += f"\n\nCaption/teks yang menyertai video:\n\"{caption}\""
+        full_prompt += "\n\nNilai juga teksnya: apakah melengkapi video dengan baik?"
+
+    try:
+        loop = asyncio.get_event_loop()
+        # Video butuh max_tokens lebih tinggi (lebih banyak hal untuk dianalisis)
+        reply = await loop.run_in_executor(
+            None, lambda: _call_gemini_media(video_b64, mime_type, full_prompt, max_tokens=900)
+        )
+        return reply
+    except Exception as e:
+        log.error(f"analyze_content_video error: {e}")
+        return "Maaf, gagal analisis video. Pastikan video terkirim dan ukurannya tidak terlalu besar. 🙏"
 
 
 async def _get_cs_targeted_detail(question: str, aggregates) -> dict:

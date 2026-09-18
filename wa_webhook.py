@@ -281,6 +281,69 @@ def _is_image_message(payload: dict) -> bool:
     return False
 
 
+def _is_video_message(payload: dict) -> bool:
+    """Cek apakah payload mengandung video."""
+    msg_type = payload.get("message_type") or payload.get("type_message") or ""
+    if msg_type.lower() in ("video", "videoMessage", "video_message"):
+        return True
+    mt = payload.get("media_type") or payload.get("mime_type") or ""
+    if mt.startswith("video"):
+        has_media = bool(
+            payload.get("media_url") or payload.get("file_url") or payload.get("url")
+            or payload.get("media_base64")
+        )
+        return has_media
+    return False
+
+
+def _extract_video_from_payload(payload: dict) -> tuple[str | None, str]:
+    """
+    Ekstrak video dari payload Replai.
+    Return: (base64_string_atau_None, mime_type)
+    Limit: maks 15 MB (raw) untuk bisa dikirim ke Gemini inline.
+    """
+    import base64, urllib.request
+
+    MAX_VIDEO_BYTES = 15 * 1024 * 1024  # 15 MB
+    mime_type = "video/mp4"  # default
+
+    mt = payload.get("media_type") or payload.get("mime_type") or ""
+    if mt.startswith("video"):
+        mime_type = mt
+
+    # Prioritas 1: sudah base64
+    b64 = payload.get("media_base64")
+    if b64:
+        return b64, mime_type
+
+    # Prioritas 2: URL → download → konversi ke base64
+    url = (payload.get("media_url") or payload.get("file_url") or payload.get("url"))
+    if url and url.startswith("http"):
+        try:
+            with urllib.request.urlopen(url, timeout=45) as resp:
+                ct = resp.headers.get("Content-Type", "")
+                if ct.startswith("video"):
+                    mime_type = ct.split(";")[0].strip()
+                # Baca stream, stop kalau melebihi batas
+                chunks = []
+                total = 0
+                while True:
+                    chunk = resp.read(65536)  # 64 KB chunks
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > MAX_VIDEO_BYTES:
+                        log.warning(f"Video terlalu besar (>{MAX_VIDEO_BYTES//1024//1024} MB): {url}")
+                        return None, mime_type
+                    chunks.append(chunk)
+                data = b"".join(chunks)
+            return base64.b64encode(data).decode(), mime_type
+        except Exception as e:
+            log.warning(f"Gagal download video dari {url}: {e}")
+
+    return None, mime_type
+
+
 import wa_ai      # Gemini AI agent
 import knowledge  # Self-learning knowledge base
 
@@ -307,7 +370,23 @@ async def handle_webhook(payload: dict, aggregates, wa_bot, home_agg, berdonasi_
     log.info(f"WA webhook: intent={intent} clean_text='{text[:80]}' from={sender} group={is_grp}")
 
     try:
-        # ── Cek dulu: ada gambar? Prioritas tertinggi kalau ada media ──
+        # ── Cek dulu: ada video? Prioritas pertama ──
+        if _is_video_message(payload):
+            log.info("Video terdeteksi — mode analisis video konten")
+            video_b64, mime_type = _extract_video_from_payload(payload)
+            if video_b64:
+                caption = text
+                return await wa_ai.analyze_content_video(
+                    video_b64, mime_type, caption,
+                    aggregates, home_agg, berdonasi_db
+                )
+            else:
+                return (
+                    "Video tidak bisa diakses atau terlalu besar (maks ~15 MB). "
+                    "Coba kompres dulu atau kirim dalam format MP4 yang lebih kecil ya. 🙏"
+                )
+
+        # ── Cek: ada gambar? ──
         if _is_image_message(payload):
             log.info("Gambar terdeteksi — mode analisis visual konten")
             image_b64, mime_type = _extract_image_from_payload(payload)
