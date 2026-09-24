@@ -1,4 +1,4 @@
-﻿"""
+"""
 main.py Ã¢â‚¬â€ FastAPI app: auth, routing, scheduled sync
 """
 import os, logging, aiosqlite
@@ -879,6 +879,116 @@ async def faq_review_detail_post(
 
     return RedirectResponse("/admin/faq", status_code=303)
 
+
+# ── Pengetahuan AI ────────────────────────────────────────────────────────────
+
+@app.get("/admin/pengetahuan-ai", response_class=HTMLResponse)
+async def pengetahuan_ai_page(request: Request, flash: str = "", ok: str = "1"):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    if not is_faq_reviewer(user["u"]):
+        return RedirectResponse("/home")
+
+    import knowledge as _k
+    data = _k.load()
+
+    kode = data.get("kode_program", {})
+    kode_items = sorted([
+        {"key": k, "value": v, "unknown": "??" in str(v)}
+        for k, v in kode.items()
+    ], key=lambda x: (x["unknown"], x["key"]))
+
+    fakta = data.get("fakta_umum", {})
+    fakta_items = [{"key": k, "value": v} for k, v in sorted(fakta.items())]
+
+    pending_raw = data.get("pending_questions", {})
+    pending_items = []
+    for k, v in sorted(pending_raw.items()):
+        if isinstance(v, dict):
+            pending_items.append({"key": k, "question": v.get("question",""), "asked_at": v.get("asked_at","")})
+        else:
+            pending_items.append({"key": k, "question": str(v), "asked_at": ""})
+
+    meta = data.get("metadata", {})
+    last_upd = meta.get("last_updated", "")[:16].replace("T", " ") if meta.get("last_updated") else "-"
+
+    kode_known = sum(1 for v in kode.values() if "??" not in str(v))
+
+    return templates.TemplateResponse("pengetahuan_ai.html", {
+        "request": request, "user": user,
+        "kode_program": kode_items,
+        "fakta_umum": fakta_items,
+        "pending": pending_items,
+        "kode_total": len(kode),
+        "kode_known": kode_known,
+        "fakta_count": len(fakta),
+        "pending_count": len(pending_items),
+        "total_updates": meta.get("total_updates", 0),
+        "last_updated": last_upd,
+        "flash_msg": flash,
+        "flash_ok": ok == "1",
+    })
+
+
+@app.post("/admin/pengetahuan-ai/tambah")
+async def pengetahuan_ai_tambah(
+    request: Request,
+    category: str = Form("fakta_umum"),
+    key: str = Form(""),
+    value: str = Form(""),
+):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    if not is_faq_reviewer(user["u"]):
+        return RedirectResponse("/home")
+
+    key = key.strip()
+    value = value.strip()
+    if not key or not value:
+        from urllib.parse import quote
+        return RedirectResponse(
+            f"/admin/pengetahuan-ai?flash={quote('Kode dan penjelasan tidak boleh kosong.')}&ok=0",
+            status_code=303
+        )
+
+    import knowledge as _k
+    msg = _k.learn(key, value, category)
+    from urllib.parse import quote
+    return RedirectResponse(
+        f"/admin/pengetahuan-ai?flash={quote(msg)}&ok=1",
+        status_code=303
+    )
+
+
+@app.post("/admin/pengetahuan-ai/hapus")
+async def pengetahuan_ai_hapus(
+    request: Request,
+    category: str = Form("fakta_umum"),
+    key: str = Form(""),
+):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    if not is_faq_reviewer(user["u"]):
+        return RedirectResponse("/home")
+
+    key = key.strip()
+    if key and category:
+        import knowledge as _k
+        data = _k.load()
+        if category in data and key in data[category]:
+            del data[category][key]
+            _k.save(data)
+
+    from urllib.parse import quote
+    return RedirectResponse(
+        f"/admin/pengetahuan-ai?flash={quote(f'Entri \"{key}\" dihapus.')}&ok=1",
+        status_code=303
+    )
+
+
 @app.get("/database", response_class=HTMLResponse)
 async def database_page(request: Request):
     user = get_current_user(request)
@@ -1113,12 +1223,19 @@ async def exclusion_delete(request: Request, exclusion_id: int = Form(...)):
 
 @app.post("/webhook/replai")
 async def webhook_replai(request: Request):
-    """Webhook dari Replai.id â€” dipanggil saat ada pesan masuk."""
+    """Webhook dari Replai.id — dipanggil saat ada pesan masuk."""
     try:
+        raw_body = await request.body()
         payload = await request.json()
     except Exception:
         return JSONResponse({"ok": False}, status_code=400)
-    log.info(f"Replai webhook: {payload}")
+    # Log RAW: semua key di payload (termasuk nested) + headers Content-Type
+    log.info(f"Replai webhook RAW keys={list(payload.keys())} body_len={len(raw_body)}: {payload}")
+    # Log khusus kalau ada field media/video yang mungkin tersembunyi
+    _media_fields = {k: v for k, v in payload.items()
+                     if any(x in k.lower() for x in ("media", "url", "file", "video", "image", "mime", "type"))}
+    if _media_fields:
+        log.info(f"Replai MEDIA FIELDS: {_media_fields}")
     import asyncio
     async def _process():
         reply_text = await wa_webhook.handle_webhook(payload, agg, wa_bot, hagg, bdb)

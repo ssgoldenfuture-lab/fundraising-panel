@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% set active = "pengetahuan_ai" %}
+{% block title %}Pengetahuan AI — Fundraising GFI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🧠 Pengetahuan AI</h1>
+  <p>Semua yang sudah dipelajari bot dari tim — kode program, fakta, dan pertanyaan pending</p>
+</div>
+
+<!-- Stats -->
+<div class="grid-kpi" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+  <div class="card" style="margin:0;text-align:center;">
+    <div class="kpi-label">Kode Program</div>
+    <div class="kpi-value">{{ kode_known }}</div>
+    <div class="kpi-sub">dari {{ kode_total }} total</div>
+  </div>
+  <div class="card" style="margin:0;text-align:center;">
+    <div class="kpi-label">Fakta Dipelajari</div>
+    <div class="kpi-value">{{ fakta_count }}</div>
+    <div class="kpi-sub">via !belajar</div>
+  </div>
+  <div class="card" style="margin:0;text-align:center;">
+    <div class="kpi-label">Pending Jawaban</div>
+    <div class="kpi-value" style="color:{% if pending_count > 0 %}#B04A3F{% else %}var(--ink){% endif %}">{{ pending_count }}</div>
+    <div class="kpi-sub">bot sudah tanya</div>
+  </div>
+  <div class="card" style="margin:0;text-align:center;">
+    <div class="kpi-label">Total Update</div>
+    <div class="kpi-value">{{ total_updates }}</div>
+    <div class="kpi-sub">{{ last_updated }}</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div style="display:flex;gap:0;margin-bottom:-1px;position:relative;z-index:1;">
+  <button class="tab-btn active" onclick="switchTab('program')" id="tab-program">
+    Kode Program <span class="pill" style="margin-left:4px;">{{ kode_total }}</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('fakta')" id="tab-fakta">
+    Fakta Umum <span class="pill" style="margin-left:4px;">{{ fakta_count }}</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('pending')" id="tab-pending">
+    Pending
+    {% if pending_count > 0 %}
+    <span class="pill pill-bad" style="margin-left:4px;">{{ pending_count }}</span>
+    {% endif %}
+  </button>
+  <button class="tab-btn" onclick="switchTab('tambah')" id="tab-tambah">
+    + Tambah Manual
+  </button>
+</div>
+
+<!-- Tab: Kode Program -->
+<div id="panel-program" class="card" style="border-radius:0 12px 12px 12px;margin-bottom:16px;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+    <input type="text" id="search-program" oninput="filterTable('tbl-program',this.value)"
+      placeholder="Cari kode atau deskripsi…"
+      style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-family:inherit;width:240px;">
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);margin-left:4px;">
+      <input type="checkbox" id="only-unknown" onchange="filterUnknown(this.checked)"> Tampilkan yang belum diketahui saja
+    </label>
+    <span style="margin-left:auto;font-size:12px;color:var(--ink-soft);">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:4px;"></span>Diketahui
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#E5E7EB;margin-left:10px;margin-right:4px;"></span>Belum
+    </span>
+  </div>
+  <table id="tbl-program">
+    <thead>
+      <tr>
+        <th style="width:80px;">Kode</th>
+        <th>Deskripsi</th>
+        <th style="width:80px;">Status</th>
+        <th style="width:60px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in kode_program %}
+      <tr data-unknown="{{ 'yes' if item.unknown else 'no' }}">
+        <td><code style="font-size:12px;font-weight:700;color:var(--accent);">{{ item.key }}</code></td>
+        <td style="font-size:13px;">
+          {% if item.unknown %}
+          <span style="color:var(--ink-soft);font-style:italic;">{{ item.value }}</span>
+          {% else %}
+          {{ item.value }}
+          {% endif %}
+        </td>
+        <td>
+          {% if item.unknown %}
+          <span class="pill pill-bad">Belum</span>
+          {% else %}
+          <span class="pill">Diketahui</span>
+          {% endif %}
+        </td>
+        <td>
+          <button class="btn" style="font-size:11px;padding:3px 8px;"
+            onclick="openEdit('kode_program','{{ item.key }}','{{ item.value|replace("'","&#39;") }}')">Edit</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Tab: Fakta Umum -->
+<div id="panel-fakta" class="card" style="border-radius:0 12px 12px 12px;margin-bottom:16px;display:none;">
+  <div style="margin-bottom:14px;">
+    <input type="text" id="search-fakta" oninput="filterTable('tbl-fakta',this.value)"
+      placeholder="Cari fakta…"
+      style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-family:inherit;width:240px;">
+  </div>
+  {% if fakta_umum %}
+  <table id="tbl-fakta">
+    <thead>
+      <tr>
+        <th style="width:180px;">Kata Kunci / Kode</th>
+        <th>Penjelasan</th>
+        <th style="width:60px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in fakta_umum %}
+      <tr>
+        <td><strong style="font-size:12px;">{{ item.key }}</strong></td>
+        <td style="font-size:13px;">{{ item.value }}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn" style="font-size:11px;padding:3px 8px;"
+            onclick="openEdit('fakta_umum','{{ item.key|replace("'","&#39;") }}','{{ item.value|replace("'","&#39;") }}')">Edit</button>
+          <button class="btn" style="font-size:11px;padding:3px 8px;color:var(--bad);border-color:var(--bad);margin-left:2px;"
+            onclick="confirmDelete('fakta_umum','{{ item.key|replace("'","&#39;") }}')">Hapus</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--ink-soft);font-size:13px;">Belum ada fakta umum yang dipelajari. Gunakan perintah <code>!belajar: KATA = Penjelasan</code> di WA.</p>
+  {% endif %}
+</div>
+
+<!-- Tab: Pending -->
+<div id="panel-pending" class="card" style="border-radius:0 12px 12px 12px;margin-bottom:16px;display:none;">
+  {% if pending %}
+  <p style="font-size:12px;color:var(--ink-soft);margin-bottom:12px;">
+    Bot sudah mengirim pertanyaan berikut ke WA tapi belum ada yang jawab. Jawab di WA dengan format <code>!belajar: KODE = Penjelasan</code>, atau isi manual di sini.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Kode</th>
+        <th>Pertanyaan yang Ditanya Bot</th>
+        <th>Sejak</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in pending %}
+      <tr>
+        <td><code style="font-weight:700;color:var(--bad);">{{ item.key }}</code></td>
+        <td style="font-size:12px;color:var(--ink-soft);">{{ item.question }}</td>
+        <td style="font-size:11px;color:var(--ink-soft);white-space:nowrap;">{{ item.asked_at[:10] if item.asked_at else '-' }}</td>
+        <td>
+          <button class="btn" style="font-size:11px;padding:3px 8px;"
+            onclick="openEdit('kode_program','{{ item.key }}','')">Isi Jawaban</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:30px 0;color:var(--ink-soft);">
+    <div style="font-size:28px;margin-bottom:8px;">✅</div>
+    <p style="font-size:13px;">Tidak ada pertanyaan pending. Bot sudah tahu semua yang pernah ditanya.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Tab: Tambah Manual -->
+<div id="panel-tambah" class="card" style="border-radius:0 12px 12px 12px;margin-bottom:16px;display:none;">
+  <h3 style="margin-bottom:14px;">Tambah / Update Pengetahuan Manual</h3>
+  <p style="font-size:12px;color:var(--ink-soft);margin-bottom:16px;">
+    Sama seperti perintah <code>!belajar</code> di WA, tapi langsung dari panel ini.
+    Kalau kode sudah ada, nilainya akan di-update.
+  </p>
+  {% if flash_msg %}
+  <div class="summary" style="background:{% if flash_ok %}var(--accent){% else %}var(--bad){% endif %};margin-bottom:14px;">
+    {{ flash_msg }}
+  </div>
+  {% endif %}
+  <form method="post" action="/admin/pengetahuan-ai/tambah" style="max-width:520px;">
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Kategori</label>
+      <select name="category" id="cat-sel" onchange="updateKeyHint(this.value)"
+        style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;">
+        <option value="kode_program">Kode Program (contoh: WBP, P7, KEI)</option>
+        <option value="fakta_umum">Fakta Umum (contoh: WBP, nama program, istilah)</option>
+      </select>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">
+        Kode / Kata Kunci <span id="key-hint" style="color:var(--ink-soft);font-weight:400;">(huruf kapital untuk kode program)</span>
+      </label>
+      <input type="text" name="key" id="key-input" required
+        placeholder="Contoh: WBP" autocomplete="off"
+        style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Penjelasan / Nilai</label>
+      <input type="text" name="value" required
+        placeholder="Contoh: Water Brother Palestina — program air bersih Gaza"
+        style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;">
+    </div>
+    <button type="submit" class="btn btn-primary" style="padding:8px 20px;">Simpan ke Pengetahuan AI</button>
+  </form>
+</div>
+
+<!-- Modal Edit -->
+<div class="modal-overlay" id="editModal" onclick="if(event.target===this)closeEdit()">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeEdit()">×</button>
+    <h3 id="editModalTitle">Edit Pengetahuan</h3>
+    <div class="modal-sub" id="editModalSub"></div>
+    <form method="post" action="/admin/pengetahuan-ai/tambah">
+      <input type="hidden" name="category" id="edit-cat">
+      <div style="margin-bottom:12px;">
+        <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Kode / Kata Kunci</label>
+        <input type="text" name="key" id="edit-key" readonly
+          style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:#f5f5f5;">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Penjelasan Baru</label>
+        <input type="text" name="value" id="edit-value" required autofocus
+          style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary">Simpan</button>
+        <button type="button" class="btn" onclick="closeEdit()">Batal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Hapus -->
+<div class="modal-overlay" id="deleteModal" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeDeleteModal()">×</button>
+    <h3>Hapus Fakta?</h3>
+    <div class="modal-sub">Fakta ini akan dihapus dari knowledge base AI.</div>
+    <p id="delete-preview" style="font-size:13px;margin:12px 0;background:var(--accent-soft);padding:10px;border-radius:8px;"></p>
+    <form method="post" action="/admin/pengetahuan-ai/hapus">
+      <input type="hidden" name="category" id="del-cat">
+      <input type="hidden" name="key" id="del-key">
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn" style="background:var(--bad);color:#fff;border-color:var(--bad);">Ya, Hapus</button>
+        <button type="button" class="btn" onclick="closeDeleteModal()">Batal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.tab-btn{
+  padding:8px 16px;font-size:13px;font-family:inherit;cursor:pointer;
+  border:1px solid var(--line);border-bottom:none;background:var(--bg);
+  color:var(--ink-soft);border-radius:10px 10px 0 0;margin-right:4px;
+  transition:all .15s;
+}
+.tab-btn.active{
+  background:var(--card);color:var(--accent);font-weight:600;border-color:var(--line);
+}
+.tab-btn:hover:not(.active){background:var(--accent-soft);}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(name){
+  ['program','fakta','pending','tambah'].forEach(t=>{
+    document.getElementById('panel-'+t).style.display = t===name?'':'none';
+    document.getElementById('tab-'+t).classList.toggle('active', t===name);
+  });
+}
+
+function filterTable(tblId, q){
+  const rows = document.querySelectorAll('#'+tblId+' tbody tr');
+  const ql = q.toLowerCase();
+  rows.forEach(r=>{
+    const txt = r.textContent.toLowerCase();
+    r.style.display = txt.includes(ql) ? '' : 'none';
+  });
+}
+
+function filterUnknown(only){
+  const rows = document.querySelectorAll('#tbl-program tbody tr');
+  rows.forEach(r=>{
+    if(only) r.style.display = r.dataset.unknown==='yes' ? '' : 'none';
+    else r.style.display = '';
+  });
+}
+
+function openEdit(cat, key, value){
+  document.getElementById('edit-cat').value = cat;
+  document.getElementById('edit-key').value = key;
+  document.getElementById('edit-value').value = value.replace(/\?\? \(belum diisi tim\)/g,'').trim();
+  document.getElementById('editModalTitle').textContent = 'Edit: '+key;
+  document.getElementById('editModalSub').textContent =
+    cat === 'kode_program' ? 'Kode Program' : 'Fakta Umum';
+  document.getElementById('editModal').classList.add('open');
+  setTimeout(()=>document.getElementById('edit-value').focus(),100);
+}
+function closeEdit(){ document.getElementById('editModal').classList.remove('open'); }
+
+function confirmDelete(cat, key){
+  document.getElementById('del-cat').value = cat;
+  document.getElementById('del-key').value = key;
+  document.getElementById('delete-preview').textContent = key;
+  document.getElementById('deleteModal').classList.add('open');
+}
+function closeDeleteModal(){ document.getElementById('deleteModal').classList.remove('open'); }
+
+function updateKeyHint(cat){
+  const hint = document.getElementById('key-hint');
+  hint.textContent = cat==='kode_program'
+    ? '(huruf kapital, contoh: WBP, P7, KEI)'
+    : '(bebas, contoh: nama-istilah)';
+}
+
+// Auto-switch ke tab tambah jika flash message ada
+{% if flash_msg %}switchTab('tambah');{% endif %}
+</script>
+{% endblock %}

@@ -131,6 +131,10 @@ input[type=date],select{border:1px solid var(--line);background:#fff;border-radi
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       <span>Kelola FAQ</span>
     </a>
+    <a class="navitem {% if active=='pengetahuan_ai' %}active{% endif %}" href="/admin/pengetahuan-ai">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.9-1.76 5.4-4.3 6.54L14 17H10l-.7-1.46A7 7 0 0 1 12 2z"/><path d="M9 21h6"/><path d="M10 17v4"/><path d="M14 17v4"/></svg>
+      <span>Pengetahuan AI</span>
+    </a>
     {% endif %}
     {% if user.r == 'admin' %}
     <a class="navitem {% if active=='settings' %}active{% endif %}" href="/settings">
