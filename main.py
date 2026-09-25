@@ -19,6 +19,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 load_dotenv()
 
 import calendar_gfi
+import db_donatur_parser
 
 from models import init_db, get_user, check_password, create_user
 from sheets import sync_from_sheets
@@ -990,13 +991,156 @@ async def pengetahuan_ai_hapus(
 
 
 @app.get("/database", response_class=HTMLResponse)
-async def database_page(request: Request):
+async def database_page(request: Request, flash: str = "", ok: str = "1"):
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/login")
+
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT COUNT(*) c FROM db_donatur") as cur:
+            total = (await cur.fetchone())["c"]
+        async with db.execute(
+            "SELECT COUNT(*) c FROM db_duplikat_antrian WHERE status='pending'"
+        ) as cur:
+            pending = (await cur.fetchone())["c"]
+        async with db.execute(
+            "SELECT id, no_hp, nama_donatur, no_hp_cs, divisi, created_at "
+            "FROM db_donatur ORDER BY id DESC LIMIT 20"
+        ) as cur:
+            recent = [dict(r) for r in await cur.fetchall()]
+        # Saran dropdown dari nilai yang udah pernah dipakai — masih kosong
+        # sampai migrasi data asli (Fase 1b) jalan.
+        async with db.execute(
+            "SELECT DISTINCT no_hp_cs FROM db_donatur "
+            "WHERE no_hp_cs IS NOT NULL AND no_hp_cs != '' ORDER BY no_hp_cs"
+        ) as cur:
+            cs_options = [r["no_hp_cs"] for r in await cur.fetchall()]
+        async with db.execute(
+            "SELECT DISTINCT divisi FROM db_donatur "
+            "WHERE divisi IS NOT NULL AND divisi != '' ORDER BY divisi"
+        ) as cur:
+            divisi_options = [r["divisi"] for r in await cur.fetchall()]
+
     return templates.TemplateResponse("database.html", {
         "request": request, "user": user, "active": "database",
+        "total": total, "pending": pending, "recent": recent,
+        "cs_options": cs_options, "divisi_options": divisi_options,
+        "flash_msg": flash, "flash_ok": ok == "1",
     })
+
+
+@app.post("/database/paste")
+async def database_paste(
+    request: Request,
+    raw_text: str = Form(...),
+    no_hp_cs: str = Form(""),
+    divisi: str = Form(""),
+):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+
+    from urllib.parse import quote
+
+    no_hp_cs = no_hp_cs.strip()
+    divisi = divisi.strip()
+    rows, errors = db_donatur_parser.parse_paste_block(raw_text)
+
+    if not rows:
+        msg = "Tidak ada baris valid untuk diproses."
+        if errors:
+            msg += f" ({len(errors)} baris error, cek format — harus 'no_hp,nama')"
+        return RedirectResponse(f"/database?flash={quote(msg)}&ok=0", status_code=303)
+
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
+        db.row_factory = aiosqlite.Row
+        result = await db_donatur_parser.proses_batch(db, rows, no_hp_cs, divisi)
+
+    msg = f"{result['masuk']} db masuk otomatis, {result['antri']} db masuk antrian review (nomor sudah ada)."
+    if errors:
+        msg += f" {len(errors)} baris dilewati (format tidak valid)."
+    return RedirectResponse(f"/database?flash={quote(msg)}&ok=1", status_code=303)
+
+
+@app.get("/database/antrian", response_class=HTMLResponse)
+async def database_antrian_page(request: Request, flash: str = "", ok: str = "1"):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("""
+            SELECT a.id AS antrian_id, a.no_hp, a.nama_baru, a.no_hp_cs_baru, a.divisi_baru,
+                   a.created_at AS antrian_created_at,
+                   d.nama_donatur AS nama_lama, d.no_hp_cs AS no_hp_cs_lama,
+                   d.divisi AS divisi_lama, d.nama_label AS nama_label_lama
+            FROM db_duplikat_antrian a
+            JOIN db_donatur d ON d.id = a.existing_id
+            WHERE a.status = 'pending'
+            ORDER BY a.id ASC
+        """) as cur:
+            antrian = [dict(r) for r in await cur.fetchall()]
+
+    return templates.TemplateResponse("database_antrian.html", {
+        "request": request, "user": user, "active": "database",
+        "antrian": antrian,
+        "flash_msg": flash, "flash_ok": ok == "1",
+    })
+
+
+@app.post("/database/antrian/{antrian_id}/resolve")
+async def database_antrian_resolve(
+    request: Request, antrian_id: int, action: str = Form(...)
+):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+
+    from urllib.parse import quote
+
+    if action not in ("keep_old", "replace", "skip"):
+        return RedirectResponse(
+            f"/database/antrian?flash={quote('Aksi tidak dikenali.')}&ok=0", status_code=303
+        )
+
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM db_duplikat_antrian WHERE id = ? AND status = 'pending'",
+            (antrian_id,),
+        ) as cur:
+            row = await cur.fetchone()
+
+        if not row:
+            return RedirectResponse(
+                f"/database/antrian?flash={quote('Antrian tidak ditemukan atau sudah diproses sebelumnya.')}&ok=0",
+                status_code=303,
+            )
+
+        if action == "replace":
+            await db.execute(
+                "UPDATE db_donatur SET nama_donatur = ?, no_hp_cs = ?, divisi = ?, "
+                "updated_at = datetime('now') WHERE id = ?",
+                (row["nama_baru"], row["no_hp_cs_baru"], row["divisi_baru"], row["existing_id"]),
+            )
+            new_status = "replaced"
+        elif action == "keep_old":
+            new_status = "kept_old"
+        else:
+            new_status = "skipped"
+
+        await db.execute(
+            "UPDATE db_duplikat_antrian SET status = ?, resolved_by = ?, "
+            "resolved_at = datetime('now') WHERE id = ?",
+            (new_status, user["u"], antrian_id),
+        )
+        await db.commit()
+
+    return RedirectResponse(
+        f"/database/antrian?flash={quote('Antrian diproses.')}&ok=1", status_code=303
+    )
 
 @app.get("/kalender", response_class=HTMLResponse)
 async def kalender_page(request: Request, window: str = "auto", custom_days: int = 7):
