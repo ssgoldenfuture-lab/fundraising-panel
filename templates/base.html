@@ -112,10 +112,9 @@ input[type=date],select{border:1px solid var(--line);background:#fff;border-radi
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
       <span>Analisis Ads & Web</span>
     </a>
-    <a class="navitem soon {% if active=='database' %}active{% endif %}" href="/database">
+    <a class="navitem {% if active=='database' %}active{% endif %}" href="/database">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
       <span>Database</span>
-      <span class="nav-soon">Soon</span>
     </a>
     <a class="navitem {% if active=='kalender' %}active{% endif %}" href="/kalender">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
