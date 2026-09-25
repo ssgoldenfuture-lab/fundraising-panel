@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% set active = "database" %}
+{% block title %}Antrian Review — Database Donatur{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>⏳ Antrian Review Duplikat</h1>
+  <p>Nomor HP yang bentrok pas input massal. Data lama TIDAK berubah sampai kamu putusin di sini.</p>
+</div>
+
+{% if flash_msg %}
+<div class="summary" style="background:{% if flash_ok %}var(--accent){% else %}var(--bad){% endif %};">
+  {{ flash_msg }}
+</div>
+{% endif %}
+
+<a href="/database" class="btn" style="text-decoration:none;display:inline-block;margin-bottom:16px;">← Kembali ke Database</a>
+
+{% if not antrian %}
+<div class="card">
+  <p style="font-size:13px;color:var(--ink-soft);">Antrian kosong — tidak ada duplikat yang nunggu direview 🎉</p>
+</div>
+{% else %}
+  {% for a in antrian %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-family:monospace;font-size:15px;font-weight:700;">{{ a.no_hp }}</div>
+      <span class="pill pill-bad">Bentrok</span>
+    </div>
+
+    <table style="margin-bottom:14px;">
+      <thead>
+        <tr><th></th><th>Data LAMA (sudah ada)</th><th>Data BARU (dari paste ini)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td style="color:var(--ink-soft);font-size:12px;">Nama Donatur</td><td>{{ a.nama_lama or "—" }}</td><td>{{ a.nama_baru or "—" }}</td></tr>
+        <tr><td style="color:var(--ink-soft);font-size:12px;">No HP CS</td><td>{{ a.no_hp_cs_lama or "—" }}</td><td>{{ a.no_hp_cs_baru or "—" }}</td></tr>
+        <tr><td style="color:var(--ink-soft);font-size:12px;">Divisi</td><td>{{ a.divisi_lama or "—" }}</td><td>{{ a.divisi_baru or "—" }}</td></tr>
+        <tr><td style="color:var(--ink-soft);font-size:12px;">Nama Label</td><td>{{ a.nama_label_lama or "—" }}</td><td style="color:var(--ink-soft);">(tidak diisi saat paste)</td></tr>
+      </tbody>
+    </table>
+
+    <form method="post" action="/database/antrian/{{ a.antrian_id }}/resolve" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="submit" name="action" value="keep_old" class="btn">Pertahankan yang Lama</button>
+      <button type="submit" name="action" value="replace" class="btn btn-primary">Pakai yang Baru</button>
+      <button type="submit" name="action" value="skip" class="btn" style="color:var(--ink-soft);">Lewati (putuskan nanti)</button>
+    </form>
+  </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

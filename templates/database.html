@@ -1,59 +1,97 @@
 {% extends "base.html" %}
+{% set active = "database" %}
 {% block title %}Database — Fundraising GFI{% endblock %}
+
 {% block content %}
-<style>
-.cs-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 20px;}
-.cs-icon{width:80px;height:80px;background:linear-gradient(135deg,#E4EFE8,#2F6B4F22);border-radius:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;}
-.cs-title{font-size:24px;font-weight:700;color:var(--ink);margin-bottom:8px;}
-.cs-sub{font-size:14px;color:var(--ink-soft);max-width:440px;line-height:1.7;margin-bottom:32px;}
-.cs-badge{display:inline-flex;align-items:center;gap:6px;background:#FEF3C7;color:#92400E;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:600;margin-bottom:32px;}
-.cs-features{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;max-width:640px;width:100%;margin-top:8px;}
-.cs-feat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;text-align:left;}
-.cs-feat-icon{font-size:22px;margin-bottom:8px;}
-.cs-feat h4{font-size:13px;font-weight:600;margin-bottom:4px;}
-.cs-feat p{font-size:12px;color:var(--ink-soft);line-height:1.5;}
-</style>
+<div class="page-header">
+  <h1>🗂️ Database Donatur</h1>
+  <p>Fase 1a — input massal + cek duplikat otomatis. Migrasi data asli dari Sheets belum jalan, jadi angka di bawah masih dari data uji.</p>
+</div>
 
-<div class="cs-wrap">
-  <div class="cs-badge">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    Coming Soon
-  </div>
+{% if flash_msg %}
+<div class="summary" style="background:{% if flash_ok %}var(--accent){% else %}var(--bad){% endif %};">
+  {{ flash_msg }}
+</div>
+{% endif %}
 
-  <div class="cs-icon">
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2F6B4F" stroke-width="1.5">
-      <ellipse cx="12" cy="5" rx="9" ry="3"/>
-      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-    </svg>
+<div class="grid-kpi" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
+  <div class="card" style="margin:0;text-align:center;">
+    <div class="kpi-label">Total DB</div>
+    <div class="kpi-value">{{ total }}</div>
+    <div class="kpi-sub">di tabel db_donatur</div>
   </div>
+  <div class="card" style="margin:0;text-align:center;">
+    <div class="kpi-label">Antrian Review</div>
+    <div class="kpi-value" style="color:{% if pending > 0 %}#B04A3F{% else %}var(--ink){% endif %}">{{ pending }}</div>
+    <div class="kpi-sub">nomor bentrok, nunggu diputusin</div>
+  </div>
+  <div class="card" style="margin:0;text-align:center;display:flex;flex-direction:column;justify-content:center;">
+    <a href="/database/antrian" class="btn btn-primary" style="text-decoration:none;display:inline-block;">
+      Buka Antrian Review {% if pending > 0 %}({{ pending }}){% endif %}
+    </a>
+  </div>
+</div>
 
-  <div class="cs-title">Database Terpadu</div>
-  <div class="cs-sub">
-    Semua data donatur, campaign, dan transaksi tersinkronisasi langsung dari <strong>Google Spreadsheet</strong> ke dashboard ini. Tidak perlu input manual lagi.
-  </div>
+<!-- Form input massal -->
+<div class="card">
+  <h3>Input DB Baru (paste massal)</h3>
+  <p style="font-size:12px;color:var(--ink-soft);margin-bottom:12px;">
+    Paste langsung dari Sebaran (Label → daftar Penerima). Format per baris: <code>no_hp,apa saja</code> —
+    kolom kedua bebas isinya, sistem cuma pakai <strong>nomor HP</strong> sebagai patokan.
+    Satu No HP CS &amp; satu Divisi berlaku untuk SELURUH baris di batch ini.
+  </p>
+  <form method="post" action="/database/paste">
+    <textarea name="raw_text" rows="8" required
+      placeholder="6282194654378,Hamba Allah&#10;6282183615098,Desy Tri Ferawati&#10;6285263830413,Ildefniza"
+      style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:12px;resize:vertical;margin-bottom:12px;"></textarea>
 
-  <div class="cs-features">
-    <div class="cs-feat">
-      <div class="cs-feat-icon">📊</div>
-      <h4>Sync Google Sheets</h4>
-      <p>Data dari spreadsheet GFI otomatis masuk ke dashboard secara real-time.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      <div style="flex:1;min-width:220px;">
+        <label style="display:block;font-size:12px;color:var(--ink-soft);margin-bottom:4px;">No HP CS (berlaku 1 batch ini)</label>
+        <input type="text" name="no_hp_cs" list="cs-options" placeholder="mis. Rani 1 628112380705"
+          style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;">
+        <datalist id="cs-options">
+          {% for opt in cs_options %}<option value="{{ opt }}">{% endfor %}
+        </datalist>
+      </div>
+      <div style="flex:1;min-width:220px;">
+        <label style="display:block;font-size:12px;color:var(--ink-soft);margin-bottom:4px;">Divisi (berlaku 1 batch ini)</label>
+        <input type="text" name="divisi" list="divisi-options" placeholder="mis. OWN / SS / Paid Traffic"
+          style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;">
+        <datalist id="divisi-options">
+          {% for opt in divisi_options %}<option value="{{ opt }}">{% endfor %}
+        </datalist>
+      </div>
     </div>
-    <div class="cs-feat">
-      <div class="cs-feat-icon">🔍</div>
-      <h4>Pencarian & Filter</h4>
-      <p>Cari donatur, program, atau transaksi dengan filter canggih.</p>
-    </div>
-    <div class="cs-feat">
-      <div class="cs-feat-icon">📤</div>
-      <h4>Export Data</h4>
-      <p>Export ke CSV / Excel untuk keperluan laporan internal.</p>
-    </div>
-    <div class="cs-feat">
-      <div class="cs-feat-icon">🔗</div>
-      <h4>Multi-sumber</h4>
-      <p>Gabungkan data dari Spreadsheet, database web donasi, dan input manual.</p>
-    </div>
-  </div>
+
+    <button type="submit" class="btn btn-primary">Proses Batch</button>
+  </form>
+</div>
+
+<!-- 20 entri terbaru -->
+<div class="card">
+  <h3>20 Entri Terbaru</h3>
+  {% if recent %}
+  <table>
+    <thead>
+      <tr>
+        <th>No HP</th><th>Nama Donatur</th><th>No HP CS</th><th>Divisi</th><th>Masuk</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in recent %}
+      <tr>
+        <td style="font-family:monospace;">{{ r.no_hp }}</td>
+        <td>{{ r.nama_donatur or "—" }}</td>
+        <td style="font-size:12px;">{{ r.no_hp_cs or "—" }}</td>
+        <td><span class="pill">{{ r.divisi or "—" }}</span></td>
+        <td style="font-size:11px;color:var(--ink-soft);">{{ r.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="font-size:13px;color:var(--ink-soft);">Belum ada data. Paste batch pertama di atas buat mulai.</p>
+  {% endif %}
 </div>
 {% endblock %}

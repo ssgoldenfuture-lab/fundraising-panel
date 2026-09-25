@@ -98,6 +98,45 @@ CREATE TABLE IF NOT EXISTS institutional_exclusion (
 INSERT OR IGNORE INTO institutional_exclusion (id, donor_name, tanggal, nominal, note) VALUES
     (1, 'PT Pegadaian',      '2026-01-05', 231956329, 'Donasi kemitraan institusi'),
     (2, 'Prozis Ibnu Abbas', '2026-02-10', 389076480, 'Donasi kemitraan institusi');
+
+-- ── Database Donatur (Fase 1a) ───────────────────────────────────────────
+-- Gabungan DB MASTER + DB per-CS (Google Sheets) jadi satu tabel.
+-- no_hp adalah SATU-SATUNYA identifier/patokan (bukan kombinasi nama+no_hp) —
+-- sesuai cara kerja manual yang sudah berjalan.
+CREATE TABLE IF NOT EXISTS db_donatur (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    no_hp         TEXT    UNIQUE NOT NULL,   -- identifier utama, exact-match (belum dinormalisasi 62/8/0)
+    panggilan     TEXT,                      -- Kak/Pak/Bu dst — dipakai merge-tag broadcast
+    nama_donatur  TEXT,                      -- bebas isinya (kadang bukan nama asli, kadang nomor lain)
+    no_hp_cs      TEXT,                      -- format gabungan "NamaCS urutan no_hp_cs", mis. "Rani 1 628112380705"
+    nama_label    TEXT,                      -- label segmentasi, bisa gabungan dipisah "~"
+    divisi        TEXT,                      -- asal-usul db (OWN/SS/Paid Traffic dst), bukan divisi struktural
+    catatan_cs    TEXT,                      -- satu-satunya kolom yang nanti boleh diedit CS (read-only lainnya)
+    created_at    TEXT DEFAULT (datetime('now')),
+    updated_at    TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_db_donatur_no_hp_cs ON db_donatur(no_hp_cs);
+CREATE INDEX IF NOT EXISTS idx_db_donatur_divisi   ON db_donatur(divisi);
+
+-- Antrian review untuk db yang bentrok (exact-match no_hp) pas proses input massal.
+-- existing_id selalu merujuk ke row yang SUDAH ada di db_donatur — baik itu row lama
+-- beneran, maupun row yang baru saja di-insert dari baris LAIN dalam batch paste yang
+-- sama (dua kasus ini ditangani dengan cara yang identik, lihat db_donatur_parser.py).
+CREATE TABLE IF NOT EXISTS db_duplikat_antrian (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    no_hp           TEXT    NOT NULL,
+    existing_id     INTEGER NOT NULL REFERENCES db_donatur(id),
+    nama_baru       TEXT,
+    no_hp_cs_baru   TEXT,
+    divisi_baru     TEXT,
+    status          TEXT    NOT NULL DEFAULT 'pending',  -- pending | kept_old | replaced | skipped
+    resolved_by     TEXT,                     -- username (session cuma simpan username, bukan id)
+    resolved_at     TEXT,
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_db_dup_status ON db_duplikat_antrian(status);
 """
 
 async def init_db():
