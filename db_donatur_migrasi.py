@@ -20,8 +20,12 @@ Beda kebijakan dibanding db_donatur_parser.proses_batch (fitur paste harian):
   --execute. Jalankan dry-run dulu, buka file log CSV-nya, baru --execute
   kalau sudah yakin.
 
+Auth: pakai Service Account (SA_KEY_FILE di .env, path ke file JSON), BUKAN
+GOOGLE_API_KEY yang dipakai sheets.py — karena data ini sensitif (nama + no HP
+donatur asli), sheet-nya tetap PRIVATE, cuma di-share ke email Service Account.
+
 Cara pakai:
-    # 1. Cek dulu apa DB MASTER 2026 bisa dibaca pakai GOOGLE_API_KEY yang ada:
+    # 1. Cek dulu apa DB MASTER 2026 bisa dibaca (dry-run, baca doang):
     python db_donatur_migrasi.py --spreadsheet-id XXXX --sheet-name "DB MASTER 2026" --cs Rani
 
     # 2. Kalau laporan dry-run-nya masuk akal, baru jalankan beneran:
@@ -29,45 +33,75 @@ Cara pakai:
 """
 from __future__ import annotations
 
+import asyncio
 import csv
 import logging
 import os
-import urllib.parse
 from datetime import datetime, timezone
 
 import aiosqlite
-import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
 log = logging.getLogger("db_donatur_migrasi")
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+# SENGAJA BEDA dari mekanisme sheets.py (GOOGLE_API_KEY + sheet link-public) dan
+# calendar_gfi.py (iCal URL public) — dua-duanya baca sumber yang PUBLIK/anonim.
+# DB MASTER isinya nama + no HP donatur asli, jadi sheet-nya TETAP PRIVATE,
+# cuma di-share ke satu alamat email robot (Service Account), bukan "Anyone
+# with the link". Ini pola PERTAMA di codebase ini yang pakai Service Account
+# — bukan reuse pola yang sudah terbukti, jadi ditest lebih hati-hati.
+SA_KEY_FILE = os.getenv("SA_KEY_FILE", "")
 DB_PATH = os.path.join(os.path.dirname(__file__), "fundraising.db")
+
+_SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+
+
+def _load_sheets_service():
+    """Bikin Google Sheets API client read-only pake Service Account. Blocking —
+    selalu dipanggil lewat asyncio.to_thread(), jangan dipanggil langsung dari
+    kode async."""
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
+    if not SA_KEY_FILE:
+        raise RuntimeError(
+            "SA_KEY_FILE belum di-set di .env (nama variabel env, path ke file JSON "
+            "Service Account — lihat .env.example)."
+        )
+    if not os.path.exists(SA_KEY_FILE):
+        raise RuntimeError(
+            f"SA_KEY_FILE di .env nunjuk ke '{SA_KEY_FILE}', tapi file itu nggak "
+            "ketemu di folder ini. Pastikan file JSON Service Account-nya ada di path itu."
+        )
+    creds = service_account.Credentials.from_service_account_file(SA_KEY_FILE, scopes=_SCOPES)
+    return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
 
 async def fetch_sheet_rows(
     spreadsheet_id: str, sheet_name: str, range_suffix: str = "A2:G"
 ) -> list[list[str]]:
     """
-    Baca rows mentah dari Google Sheets API — pola & auth PERSIS sama kayak
-    _sync_one di sheets.py (GOOGLE_API_KEY, bukan Service Account).
+    Baca rows mentah dari Google Sheets API pakai Service Account (read-only).
     Range mulai dari baris 2 (baris 1 = header, sengaja dilewati).
+
+    google-api-python-client itu SYNC/blocking, jadi dijalankan di thread
+    terpisah (asyncio.to_thread) biar nggak nge-block event loop FastAPI
+    kalau nanti dipanggil dari konteks web juga.
     """
-    if not GOOGLE_API_KEY:
-        raise RuntimeError(
-            "GOOGLE_API_KEY belum di-set di .env — cek .env yang sama dipakai sheets.py"
+
+    def _blocking_fetch():
+        service = _load_sheets_service()
+        range_name = f"{sheet_name}!{range_suffix}"
+        result = (
+            service.spreadsheets()
+            .values()
+            .get(spreadsheetId=spreadsheet_id, range=range_name)
+            .execute()
         )
-    sheet_enc = urllib.parse.quote(sheet_name)
-    url = (
-        f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}"
-        f"/values/{sheet_enc}!{range_suffix}?key={GOOGLE_API_KEY}"
-    )
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()  # kalau 403/404 di sini, kemungkinan besar sheet belum link-shareable
-        data = resp.json()
-    return data.get("values", [])
+        return result.get("values", [])
+
+    return await asyncio.to_thread(_blocking_fetch)
 
 
 def cs_matches(no_hp_cs: str, cs_name: str) -> bool:
