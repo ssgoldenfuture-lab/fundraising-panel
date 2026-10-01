@@ -37,6 +37,7 @@ import asyncio
 import csv
 import logging
 import os
+from collections import Counter
 from datetime import datetime, timezone
 
 import aiosqlite
@@ -166,6 +167,19 @@ async def migrasi_cs(
     cocok = parse_rows_for_cs(raw_rows, cs_name)
     log.info(f"Baris cocok untuk CS '{cs_name}': {len(cocok)}")
 
+    # Ringkasan agregat dihitung langsung dari data hasil parse (bukan dari CSV
+    # yang dibuka di Excel), supaya bisa dicek tanpa perlu membuka data donatur.
+    divisi_counts = Counter((r["divisi"] or "(kosong)") for r in cocok)
+    baris_kontrol = [
+        r["row_sheet"]
+        for r in cocok
+        if any(
+            isinstance(v, str) and any(ord(ch) < 32 for ch in v)
+            for k, v in r.items()
+            if k != "row_sheet"
+        )
+    ]
+
     masuk = 0
     skip_sudah_ada = 0
     log_rows = []
@@ -206,7 +220,9 @@ async def migrasi_cs(
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     mode = "dryrun" if dry_run else "execute"
     log_filename = f"migrasi_log_{cs_name}_{mode}_{ts}.csv"
-    with open(log_filename, "w", newline="", encoding="utf-8") as f:
+    # utf-8-sig = UTF-8 + BOM: tanpa BOM, Excel salah menebak encoding dan emoji/
+    # karakter khusus di nama tampil berantakan (kolom di sebelahnya ikut bergeser).
+    with open(log_filename, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(
             f,
             fieldnames=[
@@ -223,6 +239,9 @@ async def migrasi_cs(
         "dry_run": dry_run,
         "total_baris_sheet": len(raw_rows),
         "total_cocok_cs_ini": len(cocok),
+        "divisi_counts": dict(divisi_counts),
+        "jumlah_baris_karakter_kontrol": len(baris_kontrol),
+        "baris_sheet_karakter_kontrol": baris_kontrol[:20],
         "masuk": masuk,
         "skip_sudah_ada": skip_sudah_ada,
         "log_file": log_filename,

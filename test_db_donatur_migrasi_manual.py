@@ -121,6 +121,35 @@ async def main():
     os.remove(result_exec2["log_file"])
     print("-> idempotency (jalan ulang setelah 'interupsi'): LOLOS\n")
 
+    print("=== TEST 6: ringkasan agregat (divisi_counts, karakter kontrol) + BOM di CSV log ===")
+    RAW_ROWS_KONTROL = [
+        ["6282000000001", "Kak", "Nama Normal", "Rani 1 628112380705", "", "1", "SSU"],
+        ["6282000000002", "Kak", "Nama dengan\nbaris baru", "Rani 1 628112380705", "", "1", "OWN"],
+        ["6282000000003", "Kak", "Nama dengan\ttab", "Rani 2 628113333333", "", "1", "OWN"],
+        ["6282000000004", "Kak", "Nama emoji 🌹❤", "Rani 2 628113333333", "", "1", ""],  # divisi kosong
+    ]
+    result6 = await migrasi_cs(
+        spreadsheet_id="dummy", sheet_name="dummy", cs_name="Rani",
+        dry_run=True, _raw_rows_override=RAW_ROWS_KONTROL,
+    )
+    assert_eq(
+        result6["divisi_counts"], {"SSU": 1, "OWN": 2, "(kosong)": 1},
+        "divisi_counts: semua nilai unik terhitung, divisi kosong tampil sebagai (kosong)",
+    )
+    assert_eq(sum(result6["divisi_counts"].values()), result6["total_cocok_cs_ini"],
+              "jumlah divisi_counts = total_cocok_cs_ini (tidak ada baris 'hilang')")
+    assert_eq(result6["jumlah_baris_karakter_kontrol"], 2, "2 baris punya newline/tab di dalam sel")
+    assert_eq(result6["baris_sheet_karakter_kontrol"], [3, 4], "nomor baris sheet yang kena dilaporkan (bukan isinya)")
+
+    with open(result6["log_file"], "rb") as f:
+        kepala = f.read(3)
+    assert_eq(kepala, b"\xef\xbb\xbf", "CSV log diawali BOM UTF-8 (supaya Excel baca emoji dengan benar)")
+    with open(result6["log_file"], encoding="utf-8-sig", newline="") as f:
+        isi_csv = f.read()
+    assert_eq("🌹❤" in isi_csv, True, "emoji utuh saat CSV dibaca balik sebagai UTF-8")
+    os.remove(result6["log_file"])
+    print("-> ringkasan agregat + BOM: LOLOS\n")
+
     os.remove(TEST_DB)
     print("=== SEMUA TEST LOLOS ===")
 
