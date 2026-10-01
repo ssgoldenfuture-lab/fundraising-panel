@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% set active = "database" %}
+{% block title %}Lihat Data — Database Donatur{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🔎 Lihat &amp; Filter Data</h1>
+  <p>Hanya untuk melihat. Pilih nomor CS, lalu label — tabel di bawah ikut menyesuaikan. Biarkan "Semua" untuk menampilkan semuanya.</p>
+</div>
+
+<a href="/database" class="btn" style="text-decoration:none;display:inline-block;margin-bottom:16px;">← Kembali ke Database</a>
+
+<div class="card">
+  <form method="get" action="/database/data" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="flex:1;min-width:240px;">
+      <label style="display:block;font-size:12px;color:var(--ink-soft);margin-bottom:4px;">Nomor CS</label>
+      <select name="cs" style="width:100%;"
+              onchange="this.form.elements['label'].value=''; this.form.submit();">
+        <option value="">Semua nomor CS ({{ total_semua_fmt }})</option>
+        {% for o in cs_options %}
+        <option value="{{ o.nilai }}" {% if o.nilai == cs %}selected{% endif %}>{{ o.nilai }} ({{ o.jumlah_fmt }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="flex:1;min-width:240px;">
+      <label style="display:block;font-size:12px;color:var(--ink-soft);margin-bottom:4px;">Label</label>
+      <select name="label" style="width:100%;" onchange="this.form.submit();">
+        <option value="">Semua label</option>
+        {% for o in label_options %}
+        <option value="{{ o.nilai }}" {% if o.nilai == label %}selected{% endif %}>{{ o.nilai }} ({{ o.jumlah_fmt }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <noscript><button type="submit" class="btn btn-primary">Terapkan</button></noscript>
+    {% if cs or label %}
+    <a href="/database/data" class="btn" style="text-decoration:none;">Reset filter</a>
+    {% endif %}
+  </form>
+  <p style="font-size:11px;color:var(--ink-soft);margin:10px 0 0;">
+    Satu db bisa punya lebih dari satu label, jadi jumlah per label kalau dijumlahkan bisa lebih besar dari total.
+  </p>
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+    <h3 style="margin:0;">Hasil</h3>
+    <span style="font-size:12px;color:var(--ink-soft);">
+      {% if total %}Menampilkan {{ dari_fmt }}–{{ sampai_fmt }} dari {{ total_fmt }} db{% else %}Tidak ada db yang cocok dengan filter ini{% endif %}
+    </span>
+  </div>
+
+  {% if rows %}
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>No HP</th><th>Panggilan</th><th>Nama Donatur</th><th>No HP CS</th><th>Label</th><th>Divisi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td style="font-family:monospace;">{{ r.no_hp }}</td>
+          <td>{{ r.panggilan or "—" }}</td>
+          <td>{{ r.nama_donatur or "—" }}</td>
+          <td style="font-size:12px;">{{ r.no_hp_cs or "—" }}</td>
+          <td style="font-size:12px;">{{ r.nama_label or "—" }}</td>
+          <td><span class="pill">{{ r.divisi or "—" }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+    {% if has_prev %}
+    <a class="btn" style="text-decoration:none;" href="/database/data?{{ qs_base }}&page={{ page - 1 }}">← Sebelumnya</a>
+    {% else %}
+    <span class="btn" style="opacity:.4;cursor:default;">← Sebelumnya</span>
+    {% endif %}
+    <span style="font-size:12px;color:var(--ink-soft);">Halaman {{ page }} dari {{ total_pages_fmt }}</span>
+    {% if has_next %}
+    <a class="btn" style="text-decoration:none;" href="/database/data?{{ qs_base }}&page={{ page + 1 }}">Berikutnya →</a>
+    {% else %}
+    <span class="btn" style="opacity:.4;cursor:default;">Berikutnya →</span>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

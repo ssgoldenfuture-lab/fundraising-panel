@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.0 — 2026-10-01
+- Database Donatur: halaman Lihat & Filter Data (`/database/data`), read-only. Dropdown bertingkat Nomor CS -> Label, tabel terpaginasi 50 baris/halaman
+- Label gabungan ("A ~ B") dipecah per label satuan di dropdown
+- AKSES: seluruh area `/database` sekarang hanya untuk role admin atau username di env `DB_VIEWERS` (default aman: kosong = hanya admin). Sebelumnya cukup login
+- Perlu tindakan saat deploy: isi `DB_VIEWERS` di `.env` server (mis. `DB_VIEWERS=mifipsb,fitri`) kalau akun non-admin perlu akses
+
 ## v0.3.0 — 2026-09-25
 - Database Donatur (Fase 1a): input massal via paste (format `no_hp,apa saja`), satu No HP CS + Divisi berlaku per-batch
 - Dedup exact-match otomatis (niru formula COUNTIF manual) — db bentrok masuk antrian review, tidak menimpa data lama otomatis

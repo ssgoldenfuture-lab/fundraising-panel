@@ -20,6 +20,7 @@ load_dotenv()
 
 import calendar_gfi
 import db_donatur_parser
+import db_donatur_view
 
 from models import init_db, get_user, check_password, create_user
 from sheets import sync_from_sheets
@@ -990,11 +991,22 @@ async def pengetahuan_ai_hapus(
     )
 
 
+def _db_ditolak():
+    """
+    Area /database menampilkan nama + no HP donatur dalam jumlah besar, jadi tidak cukup
+    'sudah login'. Hanya role admin atau username di env DB_VIEWERS (lihat
+    db_donatur_view.can_view). 303 supaya POST tidak ikut dikirim ulang ke /home.
+    """
+    return RedirectResponse("/home", status_code=303)
+
+
 @app.get("/database", response_class=HTMLResponse)
 async def database_page(request: Request, flash: str = "", ok: str = "1"):
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/login")
+    if not db_donatur_view.can_view(user):
+        return _db_ditolak()
 
     async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
@@ -1040,6 +1052,8 @@ async def database_paste(
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/login")
+    if not db_donatur_view.can_view(user):
+        return _db_ditolak()
 
     from urllib.parse import quote
 
@@ -1063,11 +1077,32 @@ async def database_paste(
     return RedirectResponse(f"/database?flash={quote(msg)}&ok=1", status_code=303)
 
 
+@app.get("/database/data", response_class=HTMLResponse)
+async def database_data_page(
+    request: Request, cs: str = "", label: str = "", page: str = "1"
+):
+    """Lihat & filter data (READ-ONLY): dropdown nomor CS -> label, tabel terpaginasi."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    if not db_donatur_view.can_view(user):
+        return _db_ditolak()
+
+    async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
+        ctx = await db_donatur_view.siapkan_halaman(db, cs, label, page)
+
+    return templates.TemplateResponse("database_data.html", {
+        "request": request, "user": user, "active": "database", **ctx,
+    })
+
+
 @app.get("/database/antrian", response_class=HTMLResponse)
 async def database_antrian_page(request: Request, flash: str = "", ok: str = "1"):
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/login")
+    if not db_donatur_view.can_view(user):
+        return _db_ditolak()
 
     async with aiosqlite.connect(agg.DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
@@ -1097,6 +1132,8 @@ async def database_antrian_resolve(
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/login")
+    if not db_donatur_view.can_view(user):
+        return _db_ditolak()
 
     from urllib.parse import quote
 
