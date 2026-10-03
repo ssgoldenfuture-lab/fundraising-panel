@@ -26,14 +26,6 @@ env/
 active_groups.json
 sessions/
 
-# Kredensial Service Account (db_donatur_migrasi.py, lihat .env.example SA_KEY_FILE)
-gfi-sheets-sa.json
-*-sa.json
-*.serviceaccount.json
-
-# Log migrasi Database Donatur — isinya nama+no HP donatur ASLI, JANGAN PERNAH commit
-migrasi_log_*.csv
-
 # Logs
 *.log
 logs/
@@ -62,3 +54,6 @@ knowledge.json
 gfi-sheets-sa.json
 *-sa.json
 service-account*.json
+
+# Log migrasi Database Donatur — isinya nama+no HP donatur ASLI, JANGAN PERNAH commit
+migrasi_log_*.csv
