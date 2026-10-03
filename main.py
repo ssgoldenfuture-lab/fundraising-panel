@@ -30,6 +30,8 @@ import berdonasi_db as bdb
 import home_aggregates as hagg
 import wa_bot
 import wa_webhook
+import rekap_cs
+import rekap_cs_gdrive
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s Ã¢â‚¬â€ %(message)s")
 log = logging.getLogger("main")
@@ -432,40 +434,115 @@ async def index(request: Request):
     return RedirectResponse("/home")
 
 @app.get("/home", response_class=HTMLResponse)
-async def home_page(request: Request):
+async def home_page(request: Request, bulan: str = ""):
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/login")
 
-    # CRM data (SQLite)
-    crm_now  = await hagg.crm_bulan_ini()
+    # ── Tentukan bulan yang ditampilkan (default: bulan ini) ──
+    from datetime import date as _date
+    today = _date.today()
+    try:
+        if bulan and len(bulan) == 7:
+            sel_year, sel_month = int(bulan[:4]), int(bulan[5:7])
+        else:
+            sel_year, sel_month = today.year, today.month
+    except Exception:
+        sel_year, sel_month = today.year, today.month
+
+    # Bulan sebelumnya
+    if sel_month == 1:
+        prev_year, prev_month = sel_year - 1, 12
+    else:
+        prev_year, prev_month = sel_year, sel_month - 1
+
+    # ── CRM data (SQLite) ──
+    crm_now  = await hagg.crm_bulan_ini()   # selalu bulan ini untuk narasi
     crm_a2a  = await hagg.crm_apple_to_apple()
     programs = await hagg.crm_top_programs(5)
     cs_alert = await hagg.crm_cs_alert()
     new_big  = await hagg.crm_donatur_baru_besar(7, 500_000)
 
-    # Online transaksi (MySQL berdonasi)
+    # ── Perbandingan CS per bulan (kiri-kanan) ──
+    cs_ini  = await hagg.crm_cs_perbulan(sel_year, sel_month)
+    cs_prev = await hagg.crm_cs_perbulan(prev_year, prev_month)
+    stat_ini  = await hagg.crm_bulan_filter(sel_year, sel_month)
+    stat_prev = await hagg.crm_bulan_filter(prev_year, prev_month)
+
+    # ── Grafik mingguan bulan ini vs bulan lalu ──
+    minggu_ini  = await hagg.crm_mingguan_filter(sel_year, sel_month)
+    minggu_prev = await hagg.crm_mingguan_filter(prev_year, prev_month)
+
+
+    # ── Online transaksi (MySQL berdonasi) ──
     try:
         online_now   = await hagg.online_bulan_ini(bdb)
-        stuck        = await hagg.online_stuck_payments(bdb, 3)
+        capaian_web  = await bdb.capaian_program(10)
         hari_buruk   = await hagg.hari_konversi_buruk(bdb, 7, 50.0)
         online_ok    = True
     except Exception as e:
         log.warning(f"home MySQL error: {e}")
         online_now = {"total":0,"paid":0,"revenue":0,"conv_rate":0}
-        stuck = []; hari_buruk = []; online_ok = False
+        capaian_web = []; hari_buruk = []; online_ok = False
 
-    # Narasi otomatis
+
+    # ── Kalender Konten (iCal Google Calendar) ──
+    try:
+        cal_events_raw = await calendar_gfi.fetch_events()
+        # Ambil event upcoming (2 hari lalu s/d 30 hari ke depan)
+        from datetime import timedelta
+        batas_lalu = (today - timedelta(days=2)).isoformat()
+        batas_depan = (today + timedelta(days=30)).isoformat()
+        cal_events = sorted(
+            [e for e in cal_events_raw
+             if e.get("tanggal") and batas_lalu <= str(e["tanggal"]) <= batas_depan],
+            key=lambda e: str(e["tanggal"])
+        )[:12]
+    except Exception as e:
+        log.warning(f"home calendar error: {e}")
+        cal_events = []
+
+    # ── Narasi otomatis ──
     narasi = hagg.generate_narasi(crm_now, crm_a2a, online_now)
+
+    # ── Bulan options untuk dropdown filter ──
+    bulan_names = ["","Januari","Februari","Maret","April","Mei","Juni",
+                   "Juli","Agustus","September","Oktober","November","Desember"]
+    bulan_options = []
+    for y in range(today.year, today.year - 2, -1):
+        for m in range(12, 0, -1):
+            if (y, m) <= (today.year, today.month):
+                val = f"{y}-{m:02d}"
+                label = f"{bulan_names[m]} {y}"
+                bulan_options.append({"val": val, "label": label})
+
+    sel_bulan_val = f"{sel_year}-{sel_month:02d}"
+    sel_bulan_label = f"{bulan_names[sel_month]} {sel_year}"
+    prev_bulan_label = f"{bulan_names[prev_month]} {prev_year}"
 
     return templates.TemplateResponse("home.html", {
         "request": request, "user": user,
         "crm_now": crm_now, "crm_a2a": crm_a2a,
         "programs": programs, "cs_alert": cs_alert, "new_big": new_big,
         "online_now": online_now, "online_ok": online_ok,
-        "stuck": stuck, "hari_buruk": hari_buruk,
+        "capaian_web": capaian_web, "hari_buruk": hari_buruk,
         "narasi": narasi,
+        # Filter bulan
+        "bulan_options": bulan_options,
+        "sel_bulan_val": sel_bulan_val,
+        "sel_bulan_label": sel_bulan_label,
+        "prev_bulan_label": prev_bulan_label,
+        # CS comparison
+        "cs_ini": cs_ini, "cs_prev": cs_prev,
+        "stat_ini": stat_ini, "stat_prev": stat_prev,
+        # Grafik mingguan
+        "minggu_ini": minggu_ini, "minggu_prev": minggu_prev,
+        # Kalender
+        "cal_events": cal_events,
+        "today_iso": today.isoformat(),
     })
+
+
 
 @app.get("/crm", response_class=HTMLResponse)
 async def crm_page(request: Request):
@@ -1530,7 +1607,237 @@ async def api_wa_config_save(request: Request):
     return JSONResponse({"ok": True})
 
 
-# Jalankan sekali: python -c "import asyncio; from main import seed_user; asyncio.run(seed_user())"
+# ══ REKAP CS ══════════════════════════════════════════════════════════════════
+
+# PIN CS disimpan di .env sebagai REKAP_CS_PINS=Annisa:1234,Eka:5678
+# Format: NAMAPERSIS:PIN (case-sensitive sesuai CS_LIST)
+def _load_cs_pins() -> dict:
+    raw = os.getenv("REKAP_CS_PINS", "")
+    pins = {}
+    for item in raw.split(","):
+        item = item.strip()
+        if ":" in item:
+            name, pin = item.split(":", 1)
+            pins[name.strip()] = pin.strip()
+    return pins
+
+
+REKAP_COOKIE = "rekap_cs_session"
+
+def _get_cs_session(request: Request) -> str | None:
+    """Return nama CS dari cookie, atau None."""
+    token = request.cookies.get(REKAP_COOKIE)
+    if not token:
+        return None
+    try:
+        return _signer.loads(token, max_age=86400 * 7)  # 7 hari
+    except Exception:
+        return None
+
+
+@app.get("/rekap", response_class=HTMLResponse)
+async def rekap_page(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    cs_session = _get_cs_session(request)
+    history = []
+    if cs_session:
+        # Ambil riwayat hari ini dari MySQL berdonasi
+        try:
+            from datetime import date as _date
+            today_str = _date.today().isoformat()
+            async with __import__('aiomysql').connect(**bdb.DB_CFG) as conn:
+                async with conn.cursor(__import__('aiomysql').DictCursor) as cur:
+                    await cur.execute("""
+                        SELECT nama_donatur, nominal, kode_program, synced_to_sheet,
+                               created_at
+                        FROM rekap_cs
+                        WHERE cs_name = %s AND DATE(created_at) = %s
+                        ORDER BY created_at DESC LIMIT 20
+                    """, (cs_session, today_str))
+                    history = list(await cur.fetchall())
+        except Exception as e:
+            log.warning(f"rekap history error: {e}")
+    return templates.TemplateResponse("rekap.html", {
+        "request": request, "user": user,
+        "cs_session": cs_session,
+        "cs_list":    rekap_cs.CS_LIST,
+        "asal_options": rekap_cs.ASAL_DONASI_OPTIONS,
+        "today":      date.today().isoformat(),
+        "history":    history,
+        "flash": None, "flash_ok": False,
+    })
+
+
+@app.post("/rekap/login")
+async def rekap_login(
+    request: Request,
+    cs_name: str = Form(...),
+    pin:     str = Form(...),
+):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    pins = _load_cs_pins()
+    expected = pins.get(cs_name, "")
+    if not expected or pin.strip() != expected:
+        resp = templates.TemplateResponse("rekap.html", {
+            "request": request, "user": user,
+            "cs_session": None,
+            "cs_list": rekap_cs.CS_LIST,
+            "asal_options": rekap_cs.ASAL_DONASI_OPTIONS,
+            "today": date.today().isoformat(),
+            "history": [],
+            "flash": "PIN salah atau nama CS tidak ditemukan.",
+            "flash_ok": False,
+        })
+        return resp
+    # Set cookie
+    token = _signer.dumps(cs_name)
+    resp  = RedirectResponse("/rekap", status_code=303)
+    resp.set_cookie(REKAP_COOKIE, token, max_age=86400 * 7, httponly=True, samesite="lax")
+    return resp
+
+
+@app.get("/rekap/logout")
+async def rekap_logout():
+    resp = RedirectResponse("/rekap", status_code=303)
+    resp.delete_cookie(REKAP_COOKIE)
+    return resp
+
+
+@app.post("/rekap/ocr")
+async def rekap_ocr(request: Request):
+    """Endpoint OCR: terima foto, return JSON field hasil Gemini."""
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    from fastapi import UploadFile, File
+    import base64
+    form  = await request.form()
+    foto  = form.get("foto")
+    if not foto:
+        return JSONResponse({"error": "Tidak ada foto"})
+    data  = await foto.read()
+    b64   = base64.b64encode(data).decode()
+    mime  = foto.content_type or "image/jpeg"
+    result = rekap_cs.extract_from_bukti_transfer(b64, mime)
+    return JSONResponse(result)
+
+
+@app.post("/rekap/submit")
+async def rekap_submit(
+    request: Request,
+    tanggal:      str = Form(...),
+    nama_donatur: str = Form(...),
+    nomor_hp:     str = Form(""),
+    username_ig:  str = Form(""),
+    nominal:      int = Form(...),
+    kode_program: str = Form(...),
+    asal_donasi:  str = Form(...),
+    keterangan:   str = Form(""),
+    bank_asal:    str = Form(""),
+    foto_b64:     str = Form(""),
+    foto_mime:    str = Form("image/jpeg"),
+    foto_name:    str = Form(""),
+):
+    user       = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    cs_session = _get_cs_session(request)
+    if not cs_session:
+        return RedirectResponse("/rekap", status_code=303)
+
+    # Hitung bulan
+    bulan = rekap_cs.bulan_dari_tanggal(
+        tanggal.replace("-", "/").split("/")  # tanggal = YYYY-MM-DD
+        and f"{tanggal[8:10]}/{tanggal[5:7]}/{tanggal[0:4]}"
+    )
+
+    # Simpan foto sementara ke /tmp
+    foto_path = None
+    if foto_b64:
+        import base64, tempfile, os as _os
+        ext = {"image/jpeg": ".jpg", "image/png": ".png",
+               "image/webp": ".webp"}.get(foto_mime, ".jpg")
+        fn = foto_name or f"rekap_{cs_session}_{tanggal}{ext}"
+        foto_path = _os.path.join("/tmp", fn.replace(" ", "_"))
+        with open(foto_path, "wb") as f:
+            f.write(base64.b64decode(foto_b64))
+
+    # Simpan ke DB rekap_cs (MySQL berdonasi)
+    rekap_id = None
+    try:
+        import aiomysql
+        async with aiomysql.connect(**bdb.DB_CFG) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    INSERT INTO rekap_cs
+                      (cs_name, tanggal_transfer, nama_donatur, nomor_hp,
+                       username_ig, nominal, kode_program, asal_donasi,
+                       keterangan, bulan, bank_asal, synced_to_sheet)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0)
+                """, (cs_session, tanggal, nama_donatur.upper(), nomor_hp,
+                      username_ig, nominal, kode_program, asal_donasi,
+                      keterangan, bulan, bank_asal))
+                await conn.commit()
+                rekap_id = cur.lastrowid
+    except Exception as e:
+        log.error(f"rekap DB save error: {e}")
+        return templates.TemplateResponse("rekap.html", {
+            "request": request, "user": user,
+            "cs_session": cs_session,
+            "cs_list": rekap_cs.CS_LIST,
+            "asal_options": rekap_cs.ASAL_DONASI_OPTIONS,
+            "today": date.today().isoformat(),
+            "history": [],
+            "flash": f"Gagal simpan ke database: {e}",
+            "flash_ok": False,
+        })
+
+    # Kirim ke Apps Script (Sheet + Drive) — background task
+    import asyncio as _asyncio
+    async def _bg_sync():
+        result = await rekap_cs_gdrive.kirim_ke_appscript(
+            cs_name=cs_session, tanggal=tanggal,
+            nama_donatur=nama_donatur.upper(), nomor_hp=nomor_hp,
+            username_ig=username_ig, nominal=nominal,
+            kode_program=kode_program, asal_donasi=asal_donasi,
+            bank_asal=bank_asal, keterangan=keterangan,
+            bulan=bulan, foto_path=foto_path,
+        )
+        if result.get("status") == "ok" and rekap_id:
+            drive_url = result.get("drive_url", "")
+            try:
+                import aiomysql as _am
+                async with _am.connect(**bdb.DB_CFG) as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute("""
+                            UPDATE rekap_cs SET synced_to_sheet=1, foto_path=%s
+                            WHERE id=%s
+                        """, (drive_url, rekap_id))
+                        await conn.commit()
+            except Exception as eu:
+                log.warning(f"rekap update synced error: {eu}")
+        else:
+            log.warning(f"Apps Script sync gagal: {result}")
+
+    _asyncio.create_task(_bg_sync())
+
+    return templates.TemplateResponse("rekap.html", {
+        "request": request, "user": user,
+        "cs_session": cs_session,
+        "cs_list": rekap_cs.CS_LIST,
+        "asal_options": rekap_cs.ASAL_DONASI_OPTIONS,
+        "today": date.today().isoformat(),
+        "history": [],
+        "flash": f"✅ Rekap {nama_donatur.upper()} Rp {nominal:,} berhasil disimpan! Sedang upload ke Drive...",
+        "flash_ok": True,
+    })
+
+
+
 
 async def seed_user(username="admin", password="GANTI_INI_SEBELUM_PAKAI", role="admin"):
     await init_db()

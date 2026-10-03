@@ -8,7 +8,16 @@
     <h1>Ringkasan</h1>
     <p>Golden Future Indonesia · laporan otomatis untuk pimpinan</p>
   </div>
-  <div style="display:flex;gap:8px;align-items:center;">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    {# Filter bulan #}
+    <form method="get" action="/home" class="no-print" style="display:flex;align-items:center;gap:6px;">
+      <select name="bulan" onchange="this.form.submit()"
+        style="border:1px solid #d1d5db;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:600;background:#f9fafb;color:#374151;outline:none;cursor:pointer;">
+        {% for opt in bulan_options %}
+        <option value="{{ opt.val }}" {% if opt.val == sel_bulan_val %}selected{% endif %}>{{ opt.label }}</option>
+        {% endfor %}
+      </select>
+    </form>
     <button onclick="window.print()" class="btn btn-primary no-print" id="printBtn">
       🖨️ Cetak / Simpan PDF
     </button>
@@ -98,8 +107,94 @@
   <a href="/crm" class="btn no-print" style="font-size:12px;">Lihat detail CRM →</a>
 </div>
 
+<!-- ══ PERBANDINGAN CS MANUAL KIRI-KANAN ════════════════════════════════════ -->
+<div style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;">
+  📊 Rekap CS Manual — Perbandingan Bulan
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+
+  <!-- Kiri: bulan dipilih -->
+  <div class="card" style="border-top:3px solid #2F6B4F;padding:16px 18px;">
+    <div style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#6b7280;text-transform:uppercase;margin-bottom:8px;">{{ sel_bulan_label }}</div>
+    <div style="font-size:24px;font-weight:800;color:#111827;margin-bottom:2px;">{{ stat_ini.total | int | rp }}</div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:12px;">{{ stat_ini.jumlah }} transaksi dikonfirmasi</div>
+    {% if cs_ini %}
+    <table style="width:100%;font-size:12px;border-collapse:collapse;">
+      <thead><tr>
+        <th style="text-align:left;padding:3px 0;color:#9ca3af;font-size:10px;">CS</th>
+        <th style="text-align:right;padding:3px 0;color:#9ca3af;font-size:10px;">Tx</th>
+        <th style="text-align:right;padding:3px 0;color:#9ca3af;font-size:10px;">Nominal</th>
+      </tr></thead>
+      <tbody>
+      {% for cs in cs_ini %}
+      <tr style="border-top:1px solid #f0f0f0;">
+        <td style="padding:5px 0;font-weight:600;color:#374151;">{{ cs.cs or '—' }}</td>
+        <td style="padding:5px 0;text-align:right;color:#6b7280;">{{ cs.jumlah }}</td>
+        <td style="padding:5px 0;text-align:right;color:#059669;font-weight:600;">{{ cs.total | int | rp }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="font-size:12px;color:#9ca3af;">Belum ada data.</p>
+    {% endif %}
+  </div>
+
+  <!-- Kanan: bulan sebelumnya -->
+  <div class="card" style="border-top:3px solid #d1d5db;padding:16px 18px;background:#fafafa;">
+    <div style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#9ca3af;text-transform:uppercase;margin-bottom:8px;">
+      {{ prev_bulan_label }} <span style="font-size:9px;background:#e5e7eb;padding:1px 6px;border-radius:8px;">Bulan Lalu</span>
+    </div>
+    <div style="font-size:24px;font-weight:800;color:#9ca3af;margin-bottom:2px;">{{ stat_prev.total | int | rp }}</div>
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:12px;">{{ stat_prev.jumlah }} transaksi dikonfirmasi</div>
+    {% if cs_prev %}
+    <table style="width:100%;font-size:12px;border-collapse:collapse;">
+      <thead><tr>
+        <th style="text-align:left;padding:3px 0;color:#9ca3af;font-size:10px;">CS</th>
+        <th style="text-align:right;padding:3px 0;color:#9ca3af;font-size:10px;">Tx</th>
+        <th style="text-align:right;padding:3px 0;color:#9ca3af;font-size:10px;">Nominal</th>
+      </tr></thead>
+      <tbody>
+      {% for cs in cs_prev %}
+      <tr style="border-top:1px solid #e5e7eb;">
+        <td style="padding:5px 0;font-weight:500;color:#9ca3af;">{{ cs.cs or '—' }}</td>
+        <td style="padding:5px 0;text-align:right;color:#9ca3af;">{{ cs.jumlah }}</td>
+        <td style="padding:5px 0;text-align:right;color:#9ca3af;font-weight:600;">{{ cs.total | int | rp }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="font-size:12px;color:#9ca3af;">Belum ada data.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% set diff_nom = stat_ini.total - stat_prev.total %}
+{% set diff_tx  = stat_ini.jumlah - stat_prev.jumlah %}
+<div style="display:flex;gap:16px;align-items:center;padding:8px 16px;background:#f9fafb;border-radius:8px;margin-bottom:16px;font-size:12px;">
+  <span style="color:#6b7280;font-weight:700;">Selisih vs Bulan Lalu:</span>
+  <span style="font-weight:700;color:{% if diff_nom >= 0 %}#059669{% else %}#ef4444{% endif %};">
+    {% if diff_nom >= 0 %}▲{% else %}▼{% endif %} {{ diff_nom | abs | int | rp }}
+  </span>
+  <span style="color:{% if diff_tx >= 0 %}#059669{% else %}#ef4444{% endif %};font-weight:600;">
+    ({% if diff_tx >= 0 %}+{% endif %}{{ diff_tx }} transaksi)
+  </span>
+</div>
+
+<!-- ══ GRAFIK PER MINGGU ════════════════════════════════════════════════════ -->
+<div class="card" style="padding:16px 20px;margin-bottom:16px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <div>
+      <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;">📈 Grafik Per Minggu</div>
+      <div style="font-size:12px;color:#9ca3af;margin-top:2px;">{{ sel_bulan_label }} vs {{ prev_bulan_label }}</div>
+    </div>
+  </div>
+  <canvas id="weeklyChart" height="90"></canvas>
+</div>
+
 <!-- ══ ALERT YANG PERLU PERHATIAN ════════════════════════════════════════════ -->
-{% set has_alert = cs_alert or new_big or stuck or hari_buruk %}
+{% set has_alert = cs_alert or new_big or hari_buruk %}
 <div style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;">
   🚨 Hal yang Perlu Perhatian
 </div>
@@ -128,24 +223,44 @@
   </div>
   {% endif %}
 
-  {% if stuck %}
-  <div class="card alert-card" style="border-left:4px solid #F59E0B;">
-    <div class="alert-title" style="color:#92400E;">⏳ Transaksi tertahan lebih dari 3 hari</div>
-    <table style="margin-top:10px;width:100%;">
-      <thead><tr><th>Donor</th><th>Campaign</th><th class="num">Nominal</th><th class="num">Tunggu</th></tr></thead>
+  {% if capaian_web %}
+  <div class="card" style="padding:14px 18px;margin-bottom:0;">
+    <div style="font-size:11px;font-weight:700;color:#2F6B4F;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">🎯 Capaian Donasi Web — Program Aktif</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr>
+        <th style="text-align:left;padding:4px 0;color:#9ca3af;font-size:10px;">Program</th>
+        <th style="text-align:right;padding:4px 8px;color:#9ca3af;font-size:10px;">Terkumpul</th>
+        <th style="text-align:right;padding:4px 0;color:#9ca3af;font-size:10px;width:50px;">%</th>
+        <th style="padding:4px 0 4px 12px;color:#9ca3af;font-size:10px;width:140px;">Progress</th>
+      </tr></thead>
       <tbody>
-      {% for s in stuck %}
-      <tr>
-        <td style="font-size:12px;">{{ s.donor_name }}</td>
-        <td style="font-size:11px;color:var(--ink-soft);">{{ s.campaign }}</td>
-        <td class="num" style="font-size:12px;">{{ s.amount | int | rp }}</td>
-        <td class="num"><span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-size:11px;">{{ s.days_waiting }} hari</span></td>
+      {% for p in capaian_web %}
+      {% set bar = [p.pct, 100] | min if p.pct else 0 %}
+      <tr style="border-top:1px solid #f0f0f0;">
+        <td style="padding:6px 0;font-weight:500;color:#374151;">
+          <a href="https://berdonasi.goldenfutureindonesia.org/campaign/{{ p.slug }}" target="_blank"
+             style="color:#374151;text-decoration:none;">{{ p.title }}</a>
+        </td>
+        <td style="padding:6px 8px;text-align:right;color:#059669;font-weight:700;">{{ p.raised | int | rp }}</td>
+        <td style="padding:6px 0;text-align:right;font-weight:700;color:{% if p.pct and p.pct >= 100 %}#059669{% elif p.pct and p.pct >= 50 %}#d97706{% else %}#6b7280{% endif %};">
+          {% if p.pct %}{{ p.pct }}%{% else %}—{% endif %}
+        </td>
+        <td style="padding:6px 0 6px 12px;">
+          {% if p.target > 0 %}
+          <div style="background:#f0f0f0;border-radius:4px;height:6px;overflow:hidden;">
+            <div style="height:6px;border-radius:4px;background:{% if p.pct and p.pct >= 100 %}#059669{% elif p.pct and p.pct >= 50 %}#f59e0b{% else %}#4f46e5{% endif %};width:{{ [p.pct or 0, 100] | min }}%;"></div>
+          </div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:2px;">Target: {{ p.target | int | rp }}</div>
+          {% else %}
+          <span style="font-size:10px;color:#9ca3af;">Tanpa target</span>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
       </tbody>
     </table>
-    <p style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;">
-      <a href="/ads" class="no-print">Lihat semua transaksi online →</a>
+    <p style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;text-align:right;">
+      <a href="https://berdonasi.goldenfutureindonesia.org" target="_blank" class="no-print">Lihat semua campaign →</a>
     </p>
   </div>
   {% endif %}
@@ -220,6 +335,59 @@
   {% endif %}
 </div>
 
+<!-- ══ KALENDER KONTEN ══════════════════════════════════════════════════════ -->
+<div style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;">
+  📅 Kalender Konten — 30 Hari ke Depan
+</div>
+<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px;">
+  {% if cal_events %}
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead>
+      <tr style="background:#f9fafb;">
+        <th style="padding:8px 16px;text-align:left;color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;width:110px;">Tanggal</th>
+        <th style="padding:8px 12px;text-align:left;color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;">Judul Event / Konten</th>
+        <th style="padding:8px 16px;text-align:left;color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;width:80px;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for ev in cal_events %}
+    {% set tgl = ev.tanggal | string %}
+    {% set is_today = tgl == today_iso %}
+    {% set is_past  = tgl < today_iso %}
+    <tr style="border-top:1px solid #f0f0f0;background:{{ '#fefce8' if is_today else ('#f9fafb' if is_past else '#fff') }};">
+      <td style="padding:9px 16px;font-weight:700;color:{{ '#d97706' if is_today else ('#9ca3af' if is_past else '#374151') }};">
+        {{ tgl[8:10] }}/{{ tgl[5:7] }}/{{ tgl[0:4] }}
+      </td>
+      <td style="padding:9px 12px;font-weight:{{ '400' if is_past else '600' }};color:{{ '#9ca3af' if is_past else '#111827' }};">
+        {{ ev.judul | truncate(80, True, '…') }}
+        {% if ev.narasi %}
+        <div style="font-size:11px;color:#9ca3af;margin-top:2px;">{{ ev.narasi | truncate(80, True, '…') }}</div>
+        {% endif %}
+      </td>
+      <td style="padding:9px 16px;">
+        {% if is_today %}
+        <span style="background:#fef3c7;color:#d97706;font-weight:700;border-radius:6px;padding:2px 8px;font-size:10px;">HARI INI</span>
+        {% elif is_past %}
+        <span style="background:#f3f4f6;color:#9ca3af;border-radius:6px;padding:2px 8px;font-size:10px;">Selesai</span>
+        {% else %}
+        <span style="background:#dcfce7;color:#16a34a;font-weight:600;border-radius:6px;padding:2px 8px;font-size:10px;">Upcoming</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div style="padding:10px 16px;border-top:1px solid #f0f0f0;text-align:right;">
+    <a href="/kalender" class="no-print" style="font-size:12px;color:#4f46e5;font-weight:600;text-decoration:none;">Lihat semua di kalender lengkap →</a>
+  </div>
+  {% else %}
+  <div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">
+    Tidak ada event di Google Calendar 30 hari ke depan.
+    <a href="/kalender" style="color:#4f46e5;text-decoration:none;font-weight:600;"> Buka kalender →</a>
+  </div>
+  {% endif %}
+</div>
+
 <!-- ══ PRINT FOOTER ═══════════════════════════════════════════════════════════ -->
 <div class="print-only" style="margin-top:32px;border-top:1px solid #ccc;padding-top:12px;text-align:center;font-size:11px;color:#999;">
   Dicetak dari fundraising.goldenfutureindonesia.org · Golden Future Indonesia
@@ -245,4 +413,106 @@
 .alert-card { padding: 14px 18px; }
 .alert-title { font-size: 13px; font-weight: 700; }
 </style>
+
+<script>
+(function(){
+  const labels = {{ minggu_ini | map(attribute='label') | list | tojson }};
+  const detailIni  = {{ minggu_ini | map(attribute='detail') | list | tojson }};
+  const detailPrev = {{ minggu_prev | map(attribute='detail') | list | tojson }};
+  const dataIni  = {{ minggu_ini | map(attribute='total') | list | tojson }};
+  const dataPrev = {{ minggu_prev | map(attribute='total') | list | tojson }};
+  const txIni    = {{ minggu_ini | map(attribute='jumlah') | list | tojson }};
+  const txPrev   = {{ minggu_prev | map(attribute='jumlah') | list | tojson }};
+
+  function rp(v) {
+    if (v >= 1_000_000_000) return 'Rp ' + (v/1_000_000_000).toFixed(1) + ' M';
+    if (v >= 1_000_000)     return 'Rp ' + (v/1_000_000).toFixed(1) + ' jt';
+    return 'Rp ' + v.toLocaleString('id-ID');
+  }
+
+  const ctx = document.getElementById('weeklyChart');
+  if (!ctx) return;
+
+  // Plugin inline: tulis nominal di atas tiap bar (tanpa library tambahan)
+  const barValueLabels = {
+    id: 'barValueLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx: c } = chart;
+      c.save();
+      c.font = '600 10px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'bottom';
+      chart.data.datasets.forEach((ds, di) => {
+        const meta = chart.getDatasetMeta(di);
+        if (meta.hidden) return;
+        meta.data.forEach((bar, i) => {
+          const v = ds.data[i];
+          if (!v) return;
+          c.fillStyle = di === 0 ? '#2F6B4F' : '#6b7280';
+          c.fillText(rp(v), bar.x, bar.y - 4);
+        });
+      });
+      c.restore();
+    }
+  };
+
+  new Chart(ctx, {
+    type: 'bar',
+    plugins: [barValueLabels],
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: '{{ sel_bulan_label }}',
+          data: dataIni,
+          backgroundColor: 'rgba(47,107,79,0.85)',
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+        {
+          label: '{{ prev_bulan_label }}',
+          data: dataPrev,
+          backgroundColor: 'rgba(209,213,219,0.8)',
+          borderRadius: 6,
+          borderSkipped: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      layout: { padding: { top: 18 } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { font: { size: 11 }, padding: 12, boxWidth: 12 }
+        },
+        tooltip: {
+          callbacks: {
+            title: function(items) {
+              const i = items[0].dataIndex;
+              return labels[i] + ' (' + (items[0].datasetIndex === 0 ? detailIni[i] : detailPrev[i]) + ')';
+            },
+            label: function(item) {
+              const tx = item.datasetIndex === 0 ? txIni[item.dataIndex] : txPrev[item.dataIndex];
+              return item.dataset.label + ': ' + rp(item.raw) + ' · ' + tx + ' txn';
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: {
+          grid: { color: '#f0f0f0' },
+          ticks: {
+            font: { size: 11 },
+            callback: v => rp(v)
+          }
+        }
+      }
+    }
+  });
+})();
+</script>
 {% endblock %}
+

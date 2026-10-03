@@ -269,3 +269,68 @@ def generate_narasi(crm_now: dict, crm_a2a: dict, online_now: dict) -> str:
     kalimat3 = f"Total penerimaan gabungan (CRM + online) bulan ini: {rp(gabungan)}." if gabungan > 0 else ""
 
     return " ".join(filter(None, [kalimat1, kalimat2, kalimat3]))
+
+
+# ── Filter bulan tertentu ─────────────────────────────────────────────────────
+
+def _month_range(year: int, month: int) -> tuple[str, str]:
+    from calendar import monthrange
+    d0 = date(year, month, 1).isoformat()
+    last_day = monthrange(year, month)[1]
+    d1 = date(year, month, last_day).isoformat()
+    return d0, d1
+
+
+async def crm_bulan_filter(year: int, month: int) -> dict:
+    """Ringkasan CRM untuk bulan/tahun tertentu."""
+    d0, d1 = _month_range(year, month)
+    rows = await _fetch_sqlite("""
+        SELECT COALESCE(SUM(nominal),0) AS total, COUNT(*) AS jumlah
+        FROM donations WHERE tanggal BETWEEN ? AND ? AND is_institusional=0
+    """, (d0, d1))
+    r = rows[0] if rows else {}
+    return {"total": float(r.get("total", 0)), "jumlah": int(r.get("jumlah", 0)), "d0": d0, "d1": d1}
+
+
+async def crm_cs_perbulan(year: int, month: int) -> list[dict]:
+    """Per-CS breakdown untuk bulan/tahun tertentu."""
+    d0, d1 = _month_range(year, month)
+    return await _fetch_sqlite("""
+        SELECT cs, COUNT(*) AS jumlah, COALESCE(SUM(nominal),0) AS total
+        FROM donations WHERE tanggal BETWEEN ? AND ? AND is_institusional=0 AND cs != ''
+        GROUP BY cs ORDER BY total DESC
+    """, (d0, d1))
+
+
+async def crm_mingguan_filter(year: int, month: int) -> list[dict]:
+    """Breakdown donasi per minggu dalam bulan tertentu (Minggu 1–5)."""
+    from calendar import monthrange
+    last_day = monthrange(year, month)[1]
+    # Bagi jadi minggu: 1-7, 8-14, 15-21, 22-28, 29-akhir
+    weeks = [
+        (1, 7),
+        (8, 14),
+        (15, 21),
+        (22, 28),
+        (29, last_day),
+    ]
+    result = []
+    for i, (start, end) in enumerate(weeks, 1):
+        if start > last_day:
+            break
+        d0 = f"{year}-{month:02d}-{start:02d}"
+        d1 = f"{year}-{month:02d}-{min(end, last_day):02d}"
+        rows = await _fetch_sqlite("""
+            SELECT COALESCE(SUM(nominal),0) AS total, COUNT(*) AS jumlah
+            FROM donations WHERE tanggal BETWEEN ? AND ? AND is_institusional=0
+        """, (d0, d1))
+        r = rows[0] if rows else {}
+        result.append({
+            "label": f"Mg {i}",
+            "detail": f"{start}–{min(end, last_day)}",
+            "total": float(r.get("total", 0)),
+            "jumlah": int(r.get("jumlah", 0)),
+        })
+    return result
+
+

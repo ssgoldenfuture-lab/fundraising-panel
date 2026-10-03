@@ -43,3 +43,14 @@ Thumbs.db
 ingest/raw/
 ingest/*.csv
 ingest/*.xlsx
+
+# Skrip seed berisi password akun — jangan di-commit (repo ini PUBLIC)
+seed_users.py
+
+# Data runtime yang diedit dari UI
+knowledge.json
+
+# Kunci Service Account Google — JANGAN PERNAH COMMIT
+gfi-sheets-sa.json
+*-sa.json
+service-account*.json
