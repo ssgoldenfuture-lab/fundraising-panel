@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% set active = "rekap" %}
+{% block title %}Rekap CS Otomatis — GFI Panel{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom:20px;">
+  <div>
+    <h1>Rekap CS Otomatis</h1>
+    <p>Upload foto bukti TF → AI baca otomatis → Submit ke Google Sheet</p>
+  </div>
+</div>
+
+{# ── FLASH MESSAGE ── #}
+{% if flash %}
+<div style="padding:12px 18px;border-radius:10px;margin-bottom:16px;font-size:13px;font-weight:600;
+  background:{% if flash_ok %}#dcfce7;color:#166534;border:1px solid #86efac{% else %}#fee2e2;color:#991b1b;border:1px solid #fca5a5{% endif %};">
+  {% if flash_ok %}✅{% else %}❌{% endif %} {{ flash }}
+</div>
+{% endif %}
+
+{# ══════════════════════════════════════════════════════════
+   STEP 1: Pilih nama CS (login dengan PIN)
+══════════════════════════════════════════════════════════ #}
+{% if not cs_session %}
+<div class="card" style="max-width:420px;margin:40px auto;">
+  <div style="text-align:center;margin-bottom:20px;">
+    <div style="font-size:32px;">📋</div>
+    <h3 style="margin-top:8px;">Login CS</h3>
+    <p style="font-size:12px;color:var(--ink-soft);">Pilih nama kamu, masukkan PIN</p>
+  </div>
+  <form method="post" action="/rekap/login" style="display:flex;flex-direction:column;gap:12px;">
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Nama CS</label>
+      <select name="cs_name" required style="width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;background:var(--card);color:var(--ink);">
+        <option value="">-- Pilih nama --</option>
+        {% for cs in cs_list %}
+        <option value="{{ cs }}">{{ cs }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">PIN (4 digit terakhir nomor HP)</label>
+      <input type="password" name="pin" maxlength="10" required inputmode="numeric"
+        style="width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:18px;letter-spacing:6px;text-align:center;font-weight:700;"
+        placeholder="••••" />
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:14px;font-weight:700;">
+      Masuk →
+    </button>
+  </form>
+</div>
+
+{% else %}
+{# ══════════════════════════════════════════════════════════
+   STEP 2: Form Rekap (setelah login)
+══════════════════════════════════════════════════════════ #}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div style="width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;">
+      {{ cs_session[0] | upper }}
+    </div>
+    <div>
+      <div style="font-weight:700;font-size:14px;">{{ cs_session }}</div>
+      <div style="font-size:11px;color:var(--ink-soft);">CS aktif</div>
+    </div>
+  </div>
+  <a href="/rekap/logout" style="font-size:12px;color:var(--ink-soft);text-decoration:none;">Ganti CS →</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+
+  {# Kiri: Upload + OCR Result #}
+  <div>
+    {# Upload foto #}
+    <div class="card" id="uploadCard">
+      <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">📸 Upload Foto Bukti TF</div>
+
+      <div id="dropZone"
+        style="border:2px dashed var(--line);border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:border-color .2s;background:#fafafa;"
+        onclick="document.getElementById('fotoInput').click()"
+        ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
+        ondragleave="this.style.borderColor='var(--line)'"
+        ondrop="handleDrop(event)">
+        <div id="dropIcon" style="font-size:36px;margin-bottom:8px;">📎</div>
+        <div id="dropText" style="font-size:13px;color:var(--ink-soft);">Klik atau drag foto bukti TF</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:4px;">JPG, PNG, WEBP — maks 10MB</div>
+      </div>
+      <input type="file" id="fotoInput" accept="image/*" style="display:none" onchange="handleFileSelect(this.files[0])">
+
+      <div id="previewWrap" style="display:none;margin-top:12px;text-align:center;">
+        <img id="previewImg" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line);">
+        <div id="previewName" style="font-size:11px;color:var(--ink-soft);margin-top:4px;"></div>
+      </div>
+
+      <button id="ocrBtn" onclick="runOCR()" style="display:none;margin-top:12px;width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">
+        🤖 Baca Otomatis (AI)
+      </button>
+
+      <div id="ocrStatus" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:12px;text-align:center;"></div>
+    </div>
+  </div>
+
+  {# Kanan: Form data #}
+  <div>
+    <form method="post" action="/rekap/submit" enctype="multipart/form-data" id="rekapForm">
+      <input type="hidden" name="foto_b64" id="foto_b64">
+      <input type="hidden" name="foto_mime" id="foto_mime">
+      <input type="hidden" name="foto_name" id="foto_name">
+
+      <div class="card" style="padding:16px 18px;">
+        <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;">📝 Data Donasi</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label class="field-label">Tanggal Transfer *</label>
+            <input type="date" name="tanggal" id="f_tanggal" required class="field-input" value="{{ today }}">
+          </div>
+          <div>
+            <label class="field-label">Nominal *</label>
+            <input type="number" name="nominal" id="f_nominal" required class="field-input" placeholder="50000" min="1">
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="field-label">Nama Donatur *</label>
+          <input type="text" name="nama_donatur" id="f_nama" required class="field-input" placeholder="NAMA LENGKAP" style="text-transform:uppercase;">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label class="field-label">Nomor HP</label>
+            <input type="tel" name="nomor_hp" id="f_hp" class="field-input" placeholder="08xxxxxxxxxx">
+          </div>
+          <div>
+            <label class="field-label">Username IG</label>
+            <input type="text" name="username_ig" id="f_ig" class="field-input" placeholder="@username">
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="field-label">Kode Program *</label>
+          <input type="text" name="kode_program" id="f_program" required class="field-input" placeholder="P7, WBP, ZAK, dll">
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="field-label">Asal Donasi *</label>
+          <select name="asal_donasi" id="f_asal" required class="field-input">
+            <option value="">-- Pilih rekening tujuan --</option>
+            {% for opt in asal_options %}
+            <option value="{{ opt }}">{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="field-label">Keterangan</label>
+          <input type="text" name="keterangan" id="f_ket" class="field-input" placeholder="Info tambahan (opsional)">
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label">Bank Asal</label>
+          <input type="text" name="bank_asal" id="f_bank" class="field-input" placeholder="BCA / BNI / BRI / dll" readonly style="background:#f9fafb;color:var(--ink-soft);">
+          <div style="font-size:10px;color:#9ca3af;margin-top:2px;">Diisi otomatis dari AI</div>
+        </div>
+
+        <button type="submit" id="submitBtn"
+          style="width:100%;background:#059669;color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.02em;">
+          ✅ Submit Rekap
+        </button>
+        <div style="font-size:11px;color:#9ca3af;text-align:center;margin-top:6px;">
+          Data tersimpan ke Google Sheet + foto ke Google Drive otomatis
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Riwayat submit hari ini #}
+{% if history %}
+<div class="card" style="margin-top:8px;">
+  <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">
+    📋 Riwayat Submit Hari Ini ({{ cs_session }})
+  </div>
+  <table>
+    <thead><tr>
+      <th>Waktu</th><th>Nama Donatur</th><th>Nominal</th><th>Program</th><th>Status</th>
+    </tr></thead>
+    <tbody>
+    {% for h in history %}
+    <tr>
+      <td style="font-size:11px;color:var(--ink-soft);">{{ h.created_at[11:16] }}</td>
+      <td style="font-weight:500;">{{ h.nama_donatur }}</td>
+      <td class="num">{{ '{:,.0f}'.format(h.nominal).replace(',','.') }}</td>
+      <td style="font-size:12px;">{{ h.kode_program }}</td>
+      <td>
+        {% if h.synced_to_sheet %}
+        <span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">✅ Synced</span>
+        {% else %}
+        <span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">⏳ Pending</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<style>
+.field-label { font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px; }
+.field-input { width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;background:var(--card);color:var(--ink);outline:none;transition:border-color .15s; }
+.field-input:focus { border-color:var(--accent); }
+select.field-input { cursor:pointer; }
+</style>
+<script>
+let selectedFile = null;
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').style.borderColor = 'var(--line)';
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileSelect(file);
+}
+
+function handleFileSelect(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    alert('File harus berupa gambar!'); return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    alert('File terlalu besar (maks 10MB)!'); return;
+  }
+  selectedFile = file;
+
+  // Preview
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('previewImg').src = e.target.result;
+    document.getElementById('previewName').textContent = file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)';
+    document.getElementById('previewWrap').style.display = 'block';
+    document.getElementById('dropText').textContent = '✅ ' + file.name;
+    document.getElementById('dropIcon').textContent = '🖼️';
+    document.getElementById('ocrBtn').style.display = 'block';
+
+    // Simpan base64 ke hidden field
+    const b64 = e.target.result.split(',')[1];
+    document.getElementById('foto_b64').value = b64;
+    document.getElementById('foto_mime').value = file.type;
+    document.getElementById('foto_name').value = file.name;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function runOCR() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('ocrBtn');
+  const status = document.getElementById('ocrStatus');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Membaca...';
+  status.style.display = 'block';
+  status.style.background = '#f0fdf4';
+  status.style.color = '#166534';
+  status.textContent = 'AI sedang membaca foto bukti TF...';
+
+  const formData = new FormData();
+  formData.append('foto', selectedFile);
+
+  try {
+    const resp = await fetch('/rekap/ocr', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (data.error) {
+      status.style.background = '#fee2e2';
+      status.style.color = '#991b1b';
+      status.textContent = '❌ ' + data.error + ' — isi manual ya';
+    } else {
+      // Isi form
+      if (data.nama_donatur) document.getElementById('f_nama').value = data.nama_donatur;
+      if (data.nominal)      document.getElementById('f_nominal').value = data.nominal;
+      if (data.bank_asal)    document.getElementById('f_bank').value = data.bank_asal;
+      if (data.tanggal) {
+        // Convert DD/MM/YYYY → YYYY-MM-DD
+        const parts = data.tanggal.split('/');
+        if (parts.length === 3) {
+          document.getElementById('f_tanggal').value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+      }
+      // Auto-pilih asal donasi berdasarkan bank
+      if (data.bank_asal) autoSelectAsal(data.bank_asal);
+
+      status.style.background = '#dcfce7';
+      status.style.color = '#166534';
+      status.textContent = '✅ Berhasil dibaca! Cek & koreksi jika perlu.';
+    }
+  } catch (e) {
+    status.style.background = '#fee2e2';
+    status.style.color = '#991b1b';
+    status.textContent = '❌ Gagal: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔄 Baca Ulang';
+}
+
+function autoSelectAsal(bank) {
+  const sel = document.getElementById('f_asal');
+  const bankUpper = bank.toUpperCase();
+  for (let i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value.toUpperCase().includes(bankUpper)) {
+      sel.selectedIndex = i;
+      break;
+    }
+  }
+}
+
+// Confirm submit
+document.getElementById('rekapForm') && document.getElementById('rekapForm').addEventListener('submit', function(e) {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Menyimpan & upload ke Drive...';
+});
+</script>
+{% endblock %}

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.1 — 2026-10-03
+- SINKRON: memasukkan ke repo fitur yang sudah live di server tapi belum pernah di-commit (tidak ada perubahan perilaku — isi file sama persis dengan production)
+- /home: filter bulan, perbandingan bulan dipilih vs bulan sebelumnya, grafik per minggu (dengan angka nominal di atas batang), capaian donasi web per campaign (MySQL berdonasi), kalender konten 30 hari
+- /rekap: rekap CS backup (login nama + PIN, OCR Gemini bukti transfer, simpan ke MySQL `rekap_cs`, kirim ke Apps Script untuk Drive + Sheet)
+- rekap_cs_appscript.js: kode Apps Script yang sedang ter-deploy (routing Nabila -> tab PaidNabila, CS lain -> tab Auto_<Nama>)
+- requirements: `requests` dicatat eksplisit; .env.example dilengkapi; .gitignore: seed_users.py, knowledge.json, file kunci Service Account
+
 ## v0.4.0 — 2026-10-01
 - Database Donatur: halaman Lihat & Filter Data (`/database/data`), read-only. Dropdown bertingkat Nomor CS -> Label, tabel terpaginasi 50 baris/halaman
 - Label gabungan ("A ~ B") dipecah per label satuan di dropdown

@@ -214,3 +214,40 @@ async def stuck_initiated(max_days: int = 3) -> list[dict]:
         }
         for r in rows
     ]
+
+
+async def capaian_program(limit: int = 10) -> list[dict]:
+    """Capaian donasi per program (campaign) aktif dari web berdonasi."""
+    rows = await _fetch("""
+        SELECT
+          c.title,
+          c.slug,
+          c.target_amount,
+          c.raised_amount,
+          c.status,
+          COUNT(d.id)                                              AS total_txn,
+          SUM(CASE WHEN d.status='paid' THEN 1 ELSE 0 END)        AS paid_txn,
+          SUM(CASE WHEN d.status='paid' THEN d.amount ELSE 0 END) AS revenue
+        FROM campaigns c
+        LEFT JOIN donations d ON d.campaign_id = c.id
+        WHERE c.status = 'active'
+        GROUP BY c.id, c.title, c.slug, c.target_amount, c.raised_amount, c.status
+        ORDER BY revenue DESC
+        LIMIT %s
+    """, (limit,))
+    result = []
+    for r in rows:
+        target  = float(r["target_amount"] or 0)
+        raised  = float(r["raised_amount"] or r["revenue"] or 0)
+        pct     = round(raised / target * 100, 1) if target > 0 else None
+        result.append({
+            "title":     (r["title"] or "")[:55] + ("…" if len(r["title"] or "") > 55 else ""),
+            "slug":      r["slug"] or "",
+            "target":    target,
+            "raised":    raised,
+            "pct":       pct,
+            "total_txn": int(r["total_txn"] or 0),
+            "paid_txn":  int(r["paid_txn"] or 0),
+        })
+    return result
+
