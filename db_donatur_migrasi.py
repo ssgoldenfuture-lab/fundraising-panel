@@ -24,6 +24,17 @@ Auth: pakai Service Account (SA_KEY_FILE di .env, path ke file JSON), BUKAN
 GOOGLE_API_KEY yang dipakai sheets.py — karena data ini sensitif (nama + no HP
 donatur asli), sheet-nya tetap PRIVATE, cuma di-share ke email Service Account.
 
+MENJALANKAN DI SERVER — sebagai user yang SAMA dengan service web (mis. www-data),
+BUKAN root. Database-nya mode WAL: kalau script jalan sebagai root, file -wal/-shm
+bisa terbuat milik root dan aplikasi web lalu gagal menulis ("attempt to write a
+readonly database"). Karena itu script MENOLAK jalan sebagai root kecuali diberi
+--izinkan-root. Bentuk perintahnya:
+    sudo -u <user-service-web> <python-venv-aplikasi> db_donatur_migrasi.py ... --log-dir <folder-privat>
+File log CSV berisi nama + no HP ASLI. Taruh di folder privat di luar folder aplikasi
+(--log-dir, atau env MIGRASI_LOG_DIR). Dibuat dengan izin 600; hapus setelah dicek.
+Sebelum --execute, script membuat backup database (API backup SQLite, aman untuk
+database yang sedang dipakai) di folder yang sama, izin 600. Matikan dengan --no-backup.
+
 Cara pakai:
     # 1. Cek dulu apa DB MASTER 2026 bisa dibaca (dry-run, baca doang):
     python db_donatur_migrasi.py --spreadsheet-id XXXX --sheet-name "DB MASTER 2026" --cs Rani
@@ -37,6 +48,8 @@ import asyncio
 import csv
 import logging
 import os
+import re
+import sqlite3
 from collections import Counter
 from datetime import datetime, timezone
 
@@ -58,6 +71,16 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "fundraising.db")
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
 
+def _izin_kunci_terlalu_longgar(path: str) -> bool:
+    """
+    True kalau file kunci bisa diakses user lain (bit 'others' terisi). Hanya bermakna
+    di POSIX; di Windows bit izin file tidak mencerminkan ACL, jadi selalu False.
+    """
+    if os.name != "posix":
+        return False
+    return bool(os.stat(path).st_mode & 0o007)
+
+
 def _load_sheets_service():
     """Bikin Google Sheets API client read-only pake Service Account. Blocking —
     selalu dipanggil lewat asyncio.to_thread(), jangan dipanggil langsung dari
@@ -74,6 +97,11 @@ def _load_sheets_service():
         raise RuntimeError(
             f"SA_KEY_FILE di .env nunjuk ke '{SA_KEY_FILE}', tapi file itu nggak "
             "ketemu di folder ini. Pastikan file JSON Service Account-nya ada di path itu."
+        )
+    if _izin_kunci_terlalu_longgar(SA_KEY_FILE):
+        log.warning(
+            "PERINGATAN: file kunci Service Account bisa dibaca user lain. "
+            "Batasi izinnya (640 atau 600) sebelum dipakai."
         )
     creds = service_account.Credentials.from_service_account_file(SA_KEY_FILE, scopes=_SCOPES)
     return build("sheets", "v4", credentials=creds, cache_discovery=False)
@@ -150,11 +178,84 @@ def parse_rows_for_cs(raw_rows: list[list[str]], cs_name: str) -> list[dict]:
     return cocok
 
 
+def _awalan(no_hp: str) -> str:
+    """Golongan awalan nomor, untuk laporan. Belum ada normalisasi (itu Fase 2)."""
+    if no_hp.startswith("62"):
+        return "62"
+    if no_hp.startswith("0"):
+        return "0"
+    if no_hp.startswith("8"):
+        return "8"
+    if no_hp.startswith("+"):
+        return "+"
+    return "lain"
+
+
+_AWAL_RUMUS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _aman_csv(nilai):
+    """
+    Cegah formula injection: sel CSV yang diawali = + - @ dieksekusi sebagai rumus saat
+    dibuka di Excel. Nama donatur itu input pihak luar, jadi diberi awalan '. HANYA
+    berlaku untuk file log; data yang masuk ke database tidak diubah.
+    """
+    if isinstance(nilai, str) and nilai and nilai[0] in _AWAL_RUMUS:
+        return "'" + nilai
+    return nilai
+
+
+def _tolak_jika_root(izinkan_root: bool = False) -> None:
+    """Hindari file -wal/-shm milik root yang bikin aplikasi web gagal menulis."""
+    if izinkan_root or not hasattr(os, "geteuid"):
+        return
+    if os.geteuid() == 0:
+        raise SystemExit(
+            "DITOLAK: jangan jalankan sebagai root. Jalankan sebagai user yang sama "
+            "dengan service web (sudo -u <user-service-web> ...), supaya file -wal/-shm "
+            "database tidak jadi milik root. Kalau memang sengaja: tambahkan --izinkan-root."
+        )
+
+
+def _siapkan_file_privat(path: str) -> None:
+    """
+    Buat file KOSONG baru dengan izin 600 sejak awal (tidak ada jeda 644). Dipanggil
+    SEBELUM ada yang ditulis ke database, supaya folder yang salah/tidak bisa ditulis
+    membuat script gagal di awal, bukan setelah data sudah masuk tanpa jejak log.
+    Gagal kalau file sudah ada (tidak menimpa). Izin 600 tetap melekat saat diisi nanti.
+    """
+    os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
+
+
+def buat_backup_db(db_path: str, tujuan_dir: str, ts: str) -> str | None:
+    """
+    Backup database lewat API backup SQLite (konsisten walau database sedang dipakai
+    aplikasi web). File backup izin 600. Return path-nya, atau None kalau db belum ada.
+    """
+    if not os.path.exists(db_path):
+        log.warning("Database %s belum ada, backup dilewati.", db_path)
+        return None
+    stem = os.path.splitext(os.path.basename(db_path))[0]
+    dest = os.path.join(tujuan_dir, f"backup_{stem}_{ts}.db")
+    os.close(os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
+    src = sqlite3.connect(db_path)
+    dst = sqlite3.connect(dest)
+    try:
+        with dst:
+            src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+    return dest
+
+
 async def migrasi_cs(
     spreadsheet_id: str,
     sheet_name: str,
     cs_name: str,
     dry_run: bool = True,
+    log_dir: str | None = None,
+    backup: bool = False,
     _raw_rows_override: list[list[str]] | None = None,  # buat testing, skip network
 ) -> dict:
     raw_rows = (
@@ -180,13 +281,45 @@ async def migrasi_cs(
         )
     ]
 
+    # Golongan awalan nomor (62 / 0 / 8 / + / lain). Belum dinormalisasi: nomor yang sama
+    # dalam format berbeda (0811... vs 62811...) dianggap BEDA oleh UNIQUE no_hp. Laporan ini
+    # buat memutuskan perlu tidaknya audit sebelum CS berikutnya.
+    awalan_no_hp = Counter(_awalan(r["no_hp"]) for r in cocok)
+
+    log_dir = os.path.expanduser(log_dir or os.getenv("MIGRASI_LOG_DIR") or ".")
+    os.makedirs(log_dir, mode=0o700, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+    mode = "dryrun" if dry_run else "execute"
+    cs_aman = re.sub(r"[^A-Za-z0-9_-]", "_", cs_name)  # nama file tidak boleh membawa / atau ..
+    log_filename = os.path.join(log_dir, f"migrasi_log_{cs_aman}_{mode}_{ts}.csv")
+    _siapkan_file_privat(log_filename)  # gagal DI AWAL kalau folder log tidak bisa dipakai
+
+    backup_file = None
+    if backup and not dry_run:
+        backup_file = await asyncio.to_thread(buat_backup_db, DB_PATH, log_dir, ts)
+
     masuk = 0
     skip_sudah_ada = 0
+    skip_duplikat_dalam_sheet = 0
+    seen: set[str] = set()
     log_rows = []
 
     async with aiosqlite.connect(DB_PATH, timeout=30) as db:
         db.row_factory = aiosqlite.Row
         for row in cocok:
+            # Nomor yang sama muncul lagi di baris lain pada sheet. Tanpa pengecekan ini, dry-run
+            # menghitung keduanya "masuk" (tidak ada yang di-insert), sementara --execute
+            # men-skip yang kedua, jadi laporan dry-run tidak sama dengan hasil sungguhan.
+            # Yang pertama menang (sama seperti perilaku saat --execute).
+            if row["no_hp"] in seen:
+                skip_duplikat_dalam_sheet += 1
+                log_rows.append(
+                    {**row, "hasil": "AKAN_skip_duplikat_dalam_sheet" if dry_run else "skip_duplikat_dalam_sheet",
+                     "existing_id": ""}
+                )
+                continue
+            seen.add(row["no_hp"])
+
             async with db.execute(
                 "SELECT id FROM db_donatur WHERE no_hp = ?", (row["no_hp"],)
             ) as cur:
@@ -217,9 +350,6 @@ async def migrasi_cs(
 
             masuk += 1
 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    mode = "dryrun" if dry_run else "execute"
-    log_filename = f"migrasi_log_{cs_name}_{mode}_{ts}.csv"
     # utf-8-sig = UTF-8 + BOM: tanpa BOM, Excel salah menebak encoding dan emoji/
     # karakter khusus di nama tampil berantakan (kolom di sebelahnya ikut bergeser).
     with open(log_filename, "w", newline="", encoding="utf-8-sig") as f:
@@ -232,7 +362,7 @@ async def migrasi_cs(
         )
         writer.writeheader()
         for r in log_rows:
-            writer.writerow(r)
+            writer.writerow({k: _aman_csv(v) for k, v in r.items()})
 
     return {
         "cs": cs_name,
@@ -240,10 +370,13 @@ async def migrasi_cs(
         "total_baris_sheet": len(raw_rows),
         "total_cocok_cs_ini": len(cocok),
         "divisi_counts": dict(divisi_counts),
+        "awalan_no_hp": dict(awalan_no_hp),
         "jumlah_baris_karakter_kontrol": len(baris_kontrol),
         "baris_sheet_karakter_kontrol": baris_kontrol[:20],
         "masuk": masuk,
         "skip_sudah_ada": skip_sudah_ada,
+        "skip_duplikat_dalam_sheet": skip_duplikat_dalam_sheet,
+        "backup_file": backup_file,
         "log_file": log_filename,
     }
 
@@ -256,11 +389,18 @@ async def _main():
     parser.add_argument("--sheet-name", default="DB MASTER 2026", help="Nama tab persis")
     parser.add_argument("--cs", required=True, help='Nama CS, mis. "Rani"')
     parser.add_argument("--execute", action="store_true", help="Jalankan beneran (default: dry-run)")
+    parser.add_argument("--log-dir", default=None,
+                        help="Folder untuk log CSV & backup (default: env MIGRASI_LOG_DIR, atau folder aktif). "
+                             "Isinya data donatur asli: pakai folder privat.")
+    parser.add_argument("--no-backup", action="store_true", help="Lewati backup database sebelum --execute")
+    parser.add_argument("--izinkan-root", action="store_true", help="Izinkan jalan sebagai root (tidak disarankan)")
     args = parser.parse_args()
+    _tolak_jika_root(args.izinkan_root)
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     result = await migrasi_cs(
-        args.spreadsheet_id, args.sheet_name, args.cs, dry_run=not args.execute
+        args.spreadsheet_id, args.sheet_name, args.cs, dry_run=not args.execute,
+        log_dir=args.log_dir, backup=not args.no_backup,
     )
     print("\n=== HASIL ===")
     for k, v in result.items():
