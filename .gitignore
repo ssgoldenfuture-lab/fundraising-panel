@@ -54,3 +54,6 @@ knowledge.json
 gfi-sheets-sa.json
 *-sa.json
 service-account*.json
+
+# Log migrasi Database Donatur — isinya nama+no HP donatur ASLI, JANGAN PERNAH commit
+migrasi_log_*.csv
